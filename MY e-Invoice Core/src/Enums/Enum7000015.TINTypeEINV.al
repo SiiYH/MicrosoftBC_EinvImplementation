@@ -1,6 +1,6 @@
 namespace MYeInvoiceCore.MYeInvoiceCore;
 
-enum 7000015 "TIN Type EINV"
+enum 7000015 "MY e-Invoice TIN Type"
 {
     Extensible = true;
 
