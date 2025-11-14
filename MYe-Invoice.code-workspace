@@ -1,0 +1,23 @@
+{
+  "folders": [
+    { "path": "MY e-Invoice Core" },
+    { "path": "MY e-Invoice UI" }
+  ],
+  "settings": {
+    "editor.formatOnSave": true,
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/bin": true,
+      "**/obj": true
+    },
+    "[al]": {
+      "editor.tabSize": 4
+    },
+    "[javascript]": {
+      "editor.tabSize": 2
+    }
+  },
+  "extensions": {
+    "recommendations": ["ms-dynamics-smb.al", "dbaeumer.vscode-eslint"]
+  }
+}

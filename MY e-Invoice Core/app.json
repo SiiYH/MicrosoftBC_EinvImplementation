@@ -1,0 +1,33 @@
+{
+  "id": "25f81a5d-e3b6-476d-8aaa-0d0e6d91622f",
+  "name": "MY e-Invoice Core",
+  "publisher": "Sii",
+  "version": "1.0.0.0",
+  "brief": "",
+  "description": "",
+  "privacyStatement": "",
+  "EULA": "",
+  "help": "",
+  "url": "",
+  "logo": "",
+  "dependencies": [],
+  "screenshots": [],
+  "platform": "26.0.0.0",
+  "application": "26.0.0.0",
+  "idRanges": [
+    {
+      "from": 7000000,
+      "to": 70000049
+    }
+  ],
+  "resourceExposurePolicy": {
+    "allowDebugging": true,
+    "allowDownloadingSource": true,
+    "includeSourceInSymbolFile": true
+  },
+  "target": "Cloud",
+  "runtime": "15.0",
+  "features": [
+    "NoImplicitWith"
+  ]
+}
