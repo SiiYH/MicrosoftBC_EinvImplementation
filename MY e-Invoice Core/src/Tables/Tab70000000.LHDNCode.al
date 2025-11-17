@@ -2,8 +2,8 @@ table 70000000 "MY eInv LHDN Code"
 {
     Caption = 'LHDN Code';
     DataClassification = SystemMetadata;
-    LookupPageId = "MY eInv LHDN Code List";
-    DrillDownPageId = "MY eInv LHDN Code List";
+    LookupPageId = "MY eInv Code List";
+    DrillDownPageId = "MY eInv Code List";
 
     fields
     {

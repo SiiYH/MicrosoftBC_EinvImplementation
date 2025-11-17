@@ -1,10 +1,10 @@
-page 70000000 "MY eInv LHDN Code List"
+page 70000000 "MY eInv Code List"
 {
     PageType = List;
     ApplicationArea = All;
     UsageCategory = Lists;
     SourceTable = "MY eInv LHDN Code";
-    Caption = 'LHDN Codes';
+    Caption = 'eInvoice Codes';
     CardPageId = "LHDN Code Card";
     Editable = false;
 

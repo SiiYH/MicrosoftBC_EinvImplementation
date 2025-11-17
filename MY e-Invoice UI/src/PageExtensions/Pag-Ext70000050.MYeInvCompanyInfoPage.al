@@ -90,7 +90,7 @@ pageextension 70000050 "MY eInv Company Info Page" extends "Company Information"
 
                     trigger OnAction()
                     var
-                        LHDNCodeList: Page "MY eInv LHDN Code List";
+                        LHDNCodeList: Page "MY eInv Code List";
                     begin
                         LHDNCodeList.Run();
                     end;
