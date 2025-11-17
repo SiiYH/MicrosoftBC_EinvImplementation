@@ -93,7 +93,7 @@ codeunit 70000002 "MY eInv Authentication"
         // Try common claim names for TIN
         if PayloadJson.Get('tin', JsonToken) then
             TIN := JsonToken.AsValue().AsText()
-        else if PayloadJson.Get('TIN', JsonToken) then
+        else if PayloadJson.Get('Taxpayer TIN', JsonToken) then
             TIN := JsonToken.AsValue().AsText()
         else if PayloadJson.Get('tax_id', JsonToken) then
             TIN := JsonToken.AsValue().AsText()
