@@ -1,9 +1,9 @@
-codeunit 7000000 "LHDN Code Synchronization"
+codeunit 7000000 "MY eInv LHDN Code Synch"
 {
     procedure SyncAllCodes()
     var
         Window: Dialog;
-        CodeType: Enum "LHDN Code Type";
+        CodeType: Enum "MY eInv LHDN Code Type";
         CurrentStep: Integer;
         TotalSteps: Integer;
     begin
@@ -17,53 +17,53 @@ codeunit 7000000 "LHDN Code Synchronization"
         Window.Update(2, TotalSteps);
 
         Window.Update(3, 'State Codes');
-        SyncCodeType("LHDN Code Type"::State);
+        SyncCodeType("MY eInv LHDN Code Type"::State);
         CurrentStep += 1;
         Window.Update(1, CurrentStep);
 
         Window.Update(3, 'Country Codes');
-        SyncCodeType("LHDN Code Type"::Country);
+        SyncCodeType("MY eInv LHDN Code Type"::Country);
         CurrentStep += 1;
         Window.Update(1, CurrentStep);
 
         Window.Update(3, 'Currency Codes');
-        SyncCodeType("LHDN Code Type"::Currency);
+        SyncCodeType("MY eInv LHDN Code Type"::Currency);
         CurrentStep += 1;
         Window.Update(1, CurrentStep);
 
         Window.Update(3, 'E-Invoice Types');
-        SyncCodeType("LHDN Code Type"::"E-Invoice Type");
+        SyncCodeType("MY eInv LHDN Code Type"::"E-Invoice Type");
         CurrentStep += 1;
         Window.Update(1, CurrentStep);
 
         Window.Update(3, 'MSIC Codes');
-        SyncCodeType("LHDN Code Type"::MSIC);
+        SyncCodeType("MY eInv LHDN Code Type"::MSIC);
         CurrentStep += 1;
         Window.Update(1, CurrentStep);
 
         Window.Update(3, 'Payment Modes');
-        SyncCodeType("LHDN Code Type"::"Payment Mode");
+        SyncCodeType("MY eInv LHDN Code Type"::"Payment Mode");
         CurrentStep += 1;
         Window.Update(1, CurrentStep);
 
         Window.Update(3, 'Tax Types');
-        SyncCodeType("LHDN Code Type"::"Tax Type");
+        SyncCodeType("MY eInv LHDN Code Type"::"Tax Type");
         CurrentStep += 1;
         Window.Update(1, CurrentStep);
 
         Window.Update(3, 'Unit Types');
-        SyncCodeType("LHDN Code Type"::"Unit of Measurement");
+        SyncCodeType("MY eInv LHDN Code Type"::"Unit of Measurement");
         CurrentStep += 1;
         Window.Update(1, CurrentStep);
 
         Window.Update(3, 'Classification Codes');
-        SyncCodeType("LHDN Code Type"::Classification);
+        SyncCodeType("MY eInv LHDN Code Type"::Classification);
 
         Window.Close();
         Message('All codes synchronized successfully from MyInvois SDK.');
     end;
 
-    procedure SyncCodeType(CodeType: Enum "LHDN Code Type")
+    procedure SyncCodeType(CodeType: Enum "MY eInv LHDN Code Type")
     var
         HttpClient: HttpClient;
         HttpResponse: HttpResponseMessage;
@@ -92,7 +92,7 @@ codeunit 7000000 "LHDN Code Synchronization"
         Message('%1 synchronized: %2 codes imported.', CodeType, RecordsImported);
     end;
 
-    local procedure GetSDKUrl(CodeType: Enum "LHDN Code Type"): Text
+    local procedure GetSDKUrl(CodeType: Enum "MY eInv LHDN Code Type"): Text
     var
         BaseUrl: Label 'https://sdk.myinvois.hasil.gov.my/files/', Locked = true;
     begin
@@ -118,9 +118,9 @@ codeunit 7000000 "LHDN Code Synchronization"
         end;
     end;
 
-    local procedure ImportJsonData(CodeType: Enum "LHDN Code Type"; JsonText: Text): Integer
+    local procedure ImportJsonData(CodeType: Enum "MY eInv LHDN Code Type"; JsonText: Text): Integer
     var
-        LHDNCode: Record "LHDN Code";
+        LHDNCode: Record "MY eInv LHDN Code";
         JsonToken: JsonToken;
         JsonArray: JsonArray;
         JsonObject: JsonObject;
@@ -179,9 +179,9 @@ codeunit 7000000 "LHDN Code Synchronization"
         exit(false);
     end;
 
-    local procedure InsertCodeFromJson(CodeType: Enum "LHDN Code Type"; JsonObj: JsonObject)
+    local procedure InsertCodeFromJson(CodeType: Enum "MY eInv LHDN Code Type"; JsonObj: JsonObject)
     var
-        LHDNCode: Record "LHDN Code";
+        LHDNCode: Record "MY eInv LHDN Code";
         JsonToken: JsonToken;
         Code: Text;
         Description: Text;

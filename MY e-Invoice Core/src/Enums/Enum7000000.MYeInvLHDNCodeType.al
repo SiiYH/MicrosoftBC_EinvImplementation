@@ -1,4 +1,4 @@
-enum 7000000 "LHDN Code Type"
+enum 7000000 "MY eInv LHDN Code Type"
 {
     Extensible = true;
 

@@ -1,13 +1,13 @@
-table 7000000 "LHDN Code"
+table 7000000 "MY eInv LHDN Code"
 {
     Caption = 'LHDN Code';
     DataClassification = SystemMetadata;
-    LookupPageId = "LHDN Code List";
-    DrillDownPageId = "LHDN Code List";
+    LookupPageId = "MY eInv LHDN Code List";
+    DrillDownPageId = "MY eInv LHDN Code List";
 
     fields
     {
-        field(1; "Code Type"; Enum "LHDN Code Type")
+        field(1; "Code Type"; Enum "MY eInv LHDN Code Type")
         {
             Caption = 'Code Type';
             DataClassification = SystemMetadata;
@@ -31,7 +31,7 @@ table 7000000 "LHDN Code"
         {
             Caption = 'Parent Code';
             DataClassification = SystemMetadata;
-            TableRelation = "LHDN Code"."Code" where("Code Type" = field("Code Type"));
+            TableRelation = "MY eInv LHDN Code"."Code" where("Code Type" = field("Code Type"));
         }
         field(40; "Tax Rate %"; Decimal)
         {

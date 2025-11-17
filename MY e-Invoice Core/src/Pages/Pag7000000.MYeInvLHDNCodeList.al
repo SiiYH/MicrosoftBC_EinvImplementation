@@ -1,9 +1,9 @@
-page 7000000 "LHDN Code List"
+page 7000000 "MY eInv LHDN Code List"
 {
     PageType = List;
     ApplicationArea = All;
     UsageCategory = Lists;
-    SourceTable = "LHDN Code";
+    SourceTable = "MY eInv LHDN Code";
     Caption = 'LHDN Codes';
     CardPageId = "LHDN Code Card";
     Editable = false;
@@ -65,7 +65,7 @@ page 7000000 "LHDN Code List"
 
                 trigger OnAction()
                 var
-                    LHDNCodeSync: Codeunit "LHDN Code Synchronization";
+                    LHDNCodeSync: Codeunit "MY eInv LHDN Code Synch";
                 begin
                     LHDNCodeSync.SyncAllCodes();
                     CurrPage.Update(false);
@@ -82,8 +82,8 @@ page 7000000 "LHDN Code List"
 
                 trigger OnAction()
                 var
-                    LHDNCodeSync: Codeunit "LHDN Code Synchronization";
-                    CodeTypeToSync: Enum "LHDN Code Type";
+                    LHDNCodeSync: Codeunit "MY eInv LHDN Code Synch";
+                    CodeTypeToSync: Enum "MY eInv LHDN Code Type";
                 begin
                     if Rec."Code Type" <> Rec."Code Type"::" " then
                         CodeTypeToSync := Rec."Code Type"
@@ -168,7 +168,7 @@ page 7000000 "LHDN Code List"
 
     trigger OnOpenPage()
     var
-        LHDNFeature: Codeunit "LHDN Feature Management";
+        LHDNFeature: Codeunit "MY eInv LHDN Feature Management";
     begin
         UpdateVisibility();
 

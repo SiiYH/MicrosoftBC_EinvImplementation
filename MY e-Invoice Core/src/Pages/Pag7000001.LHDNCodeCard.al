@@ -2,7 +2,7 @@ page 7000001 "LHDN Code Card"
 {
     PageType = Card;
     ApplicationArea = All;
-    SourceTable = "LHDN Code";
+    SourceTable = "MY eInv LHDN Code";
     Caption = 'LHDN Code Card';
 
     layout
@@ -78,6 +78,13 @@ page 7000001 "LHDN Code Card"
             }
         }
     }
+    trigger OnOpenPage()
+    var
+        LHDNFeature: Codeunit "MY eInv LHDN Feature Management";
+    begin
+        if not LHDNFeature.IsEInvoiceEnabled() then
+            Error('E-Invoice is not enabled. Please enable it in Company Information first.');
+    end;
 
     trigger OnAfterGetCurrRecord()
     begin
