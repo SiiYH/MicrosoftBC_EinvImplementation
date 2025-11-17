@@ -13,7 +13,7 @@
             "breakOnError": "All",
             "launchBrowser": true,
             "enableLongRunningSqlStatements": true,
-            "enableSqlInformationDebugger": true
+            "enableSqlInformationDebugger": true,
         },
         {
             "name": "AL: Generated Snapshot request",
