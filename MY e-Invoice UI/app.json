@@ -10,7 +10,14 @@
   "help": "",
   "url": "",
   "logo": "",
-  "dependencies": [],
+  "dependencies": [
+    {
+    "id": "25f81a5d-e3b6-476d-8aaa-0d0e6d91622f",
+    "name": "MY e-Invoice Core",
+    "publisher": "Sii",
+    "version": "1.0.0.0"
+    }
+  ],
   "screenshots": [],
   "platform": "26.0.0.0",
   "application": "26.0.0.0",
