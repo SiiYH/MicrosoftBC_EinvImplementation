@@ -4,7 +4,7 @@ page 70000000 "MY eInv Code List"
     ApplicationArea = All;
     UsageCategory = Lists;
     SourceTable = "MY eInv LHDN Code";
-    Caption = 'eInvoice Codes';
+    Caption = 'MY eInvoice Codes';
     CardPageId = "LHDN Code Card";
     Editable = false;
 

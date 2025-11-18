@@ -64,6 +64,8 @@ codeunit 70000002 "MY eInv Authentication"
         JsonObject: JsonObject;
         JsonToken: JsonToken;
     begin
+        ///{"iss":"https://identity.myinvois.hasil.gov.my","nbf":1763432542,"iat":1763432542,"exp":1763436142,"aud":"https://identity.myinvois.hasil.gov.my/resources","scope":["InvoicingAPI"],"client_id":"1a24c69c-190c-4877-b9e6-6ea3fed73bfb","IsTaxRepres":"1","IsIntermediary":"0","IntermedId":"0","IntermedTIN":"","IntermedROB":"","IntermedEnforced":"2","name":"C4889129000:1a24c69c-190c-4877-b9e6-6ea3fed73bfb","SSId":"f1fb77b6-f259-053e-c8ed-58f95414daab","preferred_username":"Microsoft Dynamics 365 Business Central ","TaxId":"21810","TaxpayerTIN":"C4889129000","ProfId":"26227","IsTaxAdmin":"0","IsSystem":"1"}
+
         if not JsonObject.ReadFrom(ResponseText) then
             exit(false);
 
@@ -91,15 +93,7 @@ codeunit 70000002 "MY eInv Authentication"
             exit;
 
         // Try common claim names for TIN
-        if PayloadJson.Get('tin', JsonToken) then
-            TIN := JsonToken.AsValue().AsText()
-        else if PayloadJson.Get('Taxpayer TIN', JsonToken) then
-            TIN := JsonToken.AsValue().AsText()
-        else if PayloadJson.Get('tax_id', JsonToken) then
-            TIN := JsonToken.AsValue().AsText()
-        else if PayloadJson.Get('taxid', JsonToken) then
-            TIN := JsonToken.AsValue().AsText()
-        else if PayloadJson.Get('sub', JsonToken) then // subject claim
+        if PayloadJson.Get('TaxpayerTIN', JsonToken) then
             TIN := JsonToken.AsValue().AsText();
 
         if TIN <> '' then begin

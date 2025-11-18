@@ -3,7 +3,7 @@ page 70000001 "LHDN Code Card"
     PageType = Card;
     ApplicationArea = All;
     SourceTable = "MY eInv LHDN Code";
-    Caption = 'LHDN Code Card';
+    Caption = 'MY eInvoice Code Card';
 
     layout
     {

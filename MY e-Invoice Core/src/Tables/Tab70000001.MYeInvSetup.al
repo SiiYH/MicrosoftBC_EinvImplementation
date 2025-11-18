@@ -1,6 +1,6 @@
 table 70000001 "MY eInv Setup"
 {
-    Caption = 'MY eInv Setup';
+    Caption = 'MY eInvoice Setup';
     DataClassification = CustomerContent;
 
     fields

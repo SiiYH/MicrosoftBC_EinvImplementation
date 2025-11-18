@@ -4,7 +4,7 @@ page 70000050 "MY eInv Setup Card"
     ApplicationArea = All;
     UsageCategory = Administration;
     SourceTable = "MY eInv Setup";
-    Caption = 'MY eInv Setup';
+    Caption = 'MY eInvoice Setup';
     InsertAllowed = false;
     DeleteAllowed = false;
 
@@ -12,34 +12,24 @@ page 70000050 "MY eInv Setup Card"
     {
         area(Content)
         {
-            group(Status)
+            // Status Overview at the top
+            group(StatusOverview)
             {
-                Caption = 'Status';
+                Caption = 'Status Overview';
 
-                field(StatusText; StatusText)
+                field(OverallStatusText; OverallStatusText)
                 {
                     ApplicationArea = All;
-                    Caption = 'Configuration Status';
+                    Caption = 'Status';
                     Editable = false;
-                    Style = Strong;
-                    StyleExpr = StatusStyle;
-                    ToolTip = 'Shows the current configuration status.';
-                }
+                    Style = StrongAccent;
+                    StyleExpr = OverallStatusStyle;
+                    ToolTip = 'Overall configuration and verification status.';
 
-                field("TIN Verified"; Rec."TIN Verified")
-                {
-                    ApplicationArea = All;
-                    ToolTip = 'Indicates if the TIN has been verified against API credentials.';
-                    Editable = false;
-                    Style = Strong;
-                    StyleExpr = TINVerifiedStyle;
-                }
-
-                field("Authenticated TIN"; Rec."Authenticated TIN")
-                {
-                    ApplicationArea = All;
-                    ToolTip = 'Shows the TIN associated with the API credentials (from JWT token).';
-                    Editable = false;
+                    trigger OnDrillDown()
+                    begin
+                        Message(GetStatusDetails());
+                    end;
                 }
             }
 
@@ -63,12 +53,14 @@ page 70000050 "MY eInv Setup Card"
                 {
                     ApplicationArea = All;
                     ToolTip = 'Automatically set based on selected environment.';
+                    Editable = false;
                 }
 
                 field("Identity Service URL"; Rec."Identity Service URL")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Authentication endpoint for the selected environment.';
+                    Editable = false;
                 }
             }
 
@@ -91,23 +83,8 @@ page 70000050 "MY eInv Setup Card"
                             Rec.Modify(true);
                             ClientIDDisplay := '********************************';
                             HasClientID := true;
+                            UpdateDisplayFields();
                         end;
-                    end;
-                }
-
-                field(ShowClientID; ShowClientID)
-                {
-                    ApplicationArea = All;
-                    Caption = 'Show Client ID';
-                    ToolTip = 'Toggle to show/hide the Client ID value.';
-
-                    trigger OnValidate()
-                    begin
-                        if ShowClientID then
-                            ClientIDDisplay := Rec.GetClientID()
-                        else
-                            ClientIDDisplay := '********************************';
-                        CurrPage.Update(false);
                     end;
                 }
 
@@ -126,26 +103,10 @@ page 70000050 "MY eInv Setup Card"
                             Rec.Modify(true);
                             ClientSecretDisplay := '********************************';
                             HasClientSecret := true;
+                            UpdateDisplayFields();
                         end;
                     end;
                 }
-
-                /* field(ShowClientSecret; ShowClientSecret)
-                {
-                    ApplicationArea = All;
-                    Caption = 'Show Client Secret';
-                    ToolTip = 'Toggle to show/hide the Client Secret value.';
-
-                    trigger OnValidate()
-                    begin
-                        if ShowClientSecret then
-                            ClientSecretDisplay := Rec.GetClientSecret()
-                        else
-                            ClientSecretDisplay := '********************************';
-                        CurrPage.Update(false);
-                    end;
-                } */
-
 
                 group(CredentialStatus)
                 {
@@ -155,40 +116,55 @@ page 70000050 "MY eInv Setup Card"
                     field(CredentialsConfigured; CredentialsConfiguredTxt)
                     {
                         ApplicationArea = All;
-                        Caption = 'Credentials Status';
+                        Caption = 'Status';
                         Editable = false;
                         Style = Favorable;
                         StyleExpr = true;
                     }
                 }
             }
-            group(Verification)
+
+            group(TINVerification)
             {
                 Caption = 'TIN Verification';
                 Visible = HasClientID and HasClientSecret;
 
-                field("TIN Verification Date"; Rec."TIN Verification Date")
-                {
-                    ApplicationArea = All;
-                    ToolTip = 'Date and time when TIN was last verified.';
-                    Editable = false;
-                }
-
                 field(CompanyTIN; CompanyTIN)
                 {
                     ApplicationArea = All;
-                    Caption = 'Company TIN (from Company Information)';
+                    Caption = 'Company TIN';
                     ToolTip = 'The TIN configured in Company Information.';
                     Editable = false;
+                    Style = Strong;
+                    StyleExpr = true;
                 }
 
-                field(TINMatchStatus; TINMatchStatus)
+                field("Authenticated TIN"; Rec."Authenticated TIN")
                 {
                     ApplicationArea = All;
-                    Caption = 'TIN Match Status';
+                    Caption = 'Authenticated TIN';
+                    ToolTip = 'The TIN associated with your API credentials (from JWT token).';
                     Editable = false;
                     Style = Strong;
-                    StyleExpr = TINMatchStyle;
+                    StyleExpr = AuthTINStyle;
+                }
+
+                field(TINStatusField; TINStatusField)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Verification Status';
+                    Editable = false;
+                    Style = StrongAccent;
+                    StyleExpr = TINStatusStyle;
+                    ToolTip = 'Shows whether your company TIN matches the authenticated TIN.';
+                }
+
+                field("TIN Verification Date"; Rec."TIN Verification Date")
+                {
+                    ApplicationArea = All;
+                    Caption = 'Last Verified';
+                    ToolTip = 'Date and time when TIN was last verified.';
+                    Editable = false;
                 }
             }
 
@@ -238,10 +214,11 @@ page 70000050 "MY eInv Setup Card"
                     if not Confirm('This will authenticate with LHDN MyInvois and verify your TIN. Continue?', true) then
                         exit;
 
-                    if MYeInvAuth.TestConnectionAndVerifyTIN(Rec) then
+                    if MYeInvAuth.TestConnectionAndVerifyTIN(Rec) then begin
+                        UpdateDisplayFields();
                         Message('Connection successful!\Authenticated TIN: %1\Company TIN: %2\Status: %3',
-                            Rec."Authenticated TIN", CompanyTIN,
-                            TINMatchStatus);
+                            Rec."Authenticated TIN", CompanyTIN, TINStatusField);
+                    end;
                 end;
             }
 
@@ -271,6 +248,7 @@ page 70000050 "MY eInv Setup Card"
                     HasClientSecret := false;
 
                     Message('Credentials cleared successfully.');
+                    UpdateDisplayFields();
                     CurrPage.Update(true);
                 end;
             }
@@ -280,11 +258,12 @@ page 70000050 "MY eInv Setup Card"
                 ApplicationArea = All;
                 Caption = 'View API Logs';
                 Image = Log;
+                Promoted = true;
+                PromotedCategory = Process;
                 ToolTip = 'View authentication and API call logs.';
 
                 trigger OnAction()
                 begin
-                    // Open log page (to be created)
                     Message('Log viewer coming soon.');
                 end;
             }
@@ -297,6 +276,8 @@ page 70000050 "MY eInv Setup Card"
                 ApplicationArea = All;
                 Caption = 'Company Information';
                 Image = Company;
+                Promoted = true;
+                PromotedCategory = Process;
                 ToolTip = 'Open Company Information to configure TIN and other details.';
 
                 trigger OnAction()
@@ -310,6 +291,8 @@ page 70000050 "MY eInv Setup Card"
                 ApplicationArea = All;
                 Caption = 'LHDN Codes';
                 Image = CodesList;
+                Promoted = true;
+                PromotedCategory = Process;
                 ToolTip = 'View and sync LHDN master data codes.';
 
                 trigger OnAction()
@@ -321,7 +304,13 @@ page 70000050 "MY eInv Setup Card"
     }
 
     trigger OnOpenPage()
+    var
+        LHDNFeature: Codeunit "MY eInv Feature Management";
+
     begin
+        if not LHDNFeature.IsEInvoiceEnabled() then
+            Error('E-Invoice is not enabled. Please enable it in Company Information first.');
+
         if not Rec.Get() then begin
             Rec.Init();
             Rec."Primary Key" := '';
@@ -349,69 +338,88 @@ page 70000050 "MY eInv Setup Card"
         if HasClientID then
             ClientIDDisplay := '********************************';
 
-
         if HasClientSecret then
             ClientSecretDisplay := '********************************';
 
         // Get Company TIN
         CompanyTIN := MYeInvFeature.GetCompanyTIN();
 
-        // Update status
-        UpdateStatus();
-        UpdateTINMatchStatus();
+        // Update all status fields
+        UpdateOverallStatus();
+        UpdateTINStatus();
     end;
 
-    local procedure UpdateStatus()
+    local procedure UpdateOverallStatus()
     begin
         if not HasClientID or not HasClientSecret then begin
-            StatusText := 'Not Configured';
-            StatusStyle := 'Unfavorable';
+            OverallStatusText := '⚠ Not Configured - Enter API Credentials';
+            OverallStatusStyle := 'Unfavorable';
         end else if not Rec."TIN Verified" then begin
-            StatusText := 'Configured (TIN Not Verified)';
-            StatusStyle := 'Attention';
+            OverallStatusText := '⚠ Credentials Entered - Test Connection to Verify TIN';
+            OverallStatusStyle := 'Attention';
         end else if Rec."Authenticated TIN" = CompanyTIN then begin
-            StatusText := 'Ready';
-            StatusStyle := 'Favorable';
+            OverallStatusText := '✓ Ready - All checks passed';
+            OverallStatusStyle := 'Favorable';
         end else begin
-            StatusText := 'TIN Mismatch - Check Configuration';
-            StatusStyle := 'Unfavorable';
+            OverallStatusText := '✗ TIN Mismatch - Check Configuration';
+            OverallStatusStyle := 'Unfavorable';
         end;
-
-        if Rec."TIN Verified" then
-            TINVerifiedStyle := 'Favorable'
-        else
-            TINVerifiedStyle := 'Unfavorable';
     end;
 
-    local procedure UpdateTINMatchStatus()
+    local procedure UpdateTINStatus()
     begin
         if not Rec."TIN Verified" then begin
-            TINMatchStatus := 'Not Verified';
-            TINMatchStyle := 'Subordinate';
+            TINStatusField := 'Not Verified - Click "Test Connection"';
+            TINStatusStyle := 'Subordinate';
+            AuthTINStyle := 'Subordinate';
         end else if Rec."Authenticated TIN" = '' then begin
-            TINMatchStatus := 'Unknown';
-            TINMatchStyle := 'Attention';
+            TINStatusField := 'Unknown - Re-test Connection';
+            TINStatusStyle := 'Attention';
+            AuthTINStyle := 'Attention';
         end else if Rec."Authenticated TIN" = CompanyTIN then begin
-            TINMatchStatus := '✓ Match - Ready to Use';
-            TINMatchStyle := 'Favorable';
+            TINStatusField := '✓ Verified & Matched';
+            TINStatusStyle := 'Favorable';
+            AuthTINStyle := 'Favorable';
         end else begin
-            TINMatchStatus := '✗ Mismatch - Please Check';
-            TINMatchStyle := 'Unfavorable';
+            TINStatusField := '✗ Mismatch Detected';
+            TINStatusStyle := 'Unfavorable';
+            AuthTINStyle := 'Unfavorable';
         end;
+    end;
+
+    local procedure GetStatusDetails(): Text
+    var
+        Details: Text;
+    begin
+        Details := 'Configuration Status Details:\';
+        Details += '================================\';
+        Details += StrSubstNo('Client ID: %1\', GetCheckMark(HasClientID));
+        Details += StrSubstNo('Client Secret: %1\', GetCheckMark(HasClientSecret));
+        Details += StrSubstNo('TIN Verified: %1\', GetCheckMark(Rec."TIN Verified"));
+        if Rec."TIN Verified" then
+            Details += StrSubstNo('TIN Match: %1\', GetCheckMark(Rec."Authenticated TIN" = CompanyTIN));
+        exit(Details);
+    end;
+
+    local procedure GetCheckMark(Condition: Boolean): Text
+    begin
+        if Condition then
+            exit('✓ Yes')
+        else
+            exit('✗ No');
     end;
 
     var
         ClientIDDisplay: Text;
         ClientSecretDisplay: Text;
         ShowClientID: Boolean;
-        ShowClientSecret: Boolean;
         HasClientID: Boolean;
         HasClientSecret: Boolean;
-        StatusText: Text;
-        StatusStyle: Text;
-        TINVerifiedStyle: Text;
+        OverallStatusText: Text;
+        OverallStatusStyle: Text;
         CompanyTIN: Text[20];
-        TINMatchStatus: Text;
-        TINMatchStyle: Text;
-        CredentialsConfiguredTxt: Label '✓ Credentials are configured';
+        TINStatusField: Text;
+        TINStatusStyle: Text;
+        AuthTINStyle: Text;
+        CredentialsConfiguredTxt: Label '✓ Credentials configured';
 }
