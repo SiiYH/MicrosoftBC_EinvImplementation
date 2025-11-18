@@ -105,6 +105,80 @@ table 70000001 "MY eInv Setup"
             MinValue = 10;
             MaxValue = 300;
         }
+        field(100; "Document Version"; Option)
+        {
+            Caption = 'Document Version';
+            OptionMembers = "1.0","1.1";
+            OptionCaption = '1.0 (No Signature),1.1 (With Signature)';
+
+            trigger OnValidate()
+            begin
+                if "Document Version" = "Document Version"::"1.1" then
+                    TestField("Certificate Configured", true);
+            end;
+        }
+
+        field(101; "Certificate File Name"; Text[250])
+        {
+            Caption = 'Certificate File Name';
+        }
+
+        field(102; "Certificate Content"; Blob)
+        {
+            Caption = 'Certificate Content';
+            Subtype = Bitmap;
+        }
+
+        field(103; "Certificate Password Key"; Guid)
+        {
+            Caption = 'Certificate Password Key';
+        }
+
+        field(104; "Certificate Configured"; Boolean)
+        {
+            Caption = 'Certificate Configured';
+            Editable = false;
+        }
+
+        field(105; "Certificate Issuer"; Text[250])
+        {
+            Caption = 'Certificate Issuer';
+            Editable = false;
+        }
+
+        field(106; "Certificate Serial Number"; Text[50])
+        {
+            Caption = 'Certificate Serial Number';
+            Editable = false;
+        }
+
+        field(107; "Certificate Valid From"; DateTime)
+        {
+            Caption = 'Certificate Valid From';
+            Editable = false;
+        }
+
+        field(108; "Certificate Valid To"; DateTime)
+        {
+            Caption = 'Certificate Valid To';
+            Editable = false;
+        }
+
+        field(109; "Certificate Subject"; Text[250])
+        {
+            Caption = 'Certificate Subject';
+            Editable = false;
+        }
+        field(110; "Azure Function URL"; Text[250])
+        {
+            Caption = 'Azure Function URL';
+            ToolTip = 'URL of your Azure Function for document signing (e.g., https://your-app.azurewebsites.net/api/SignDocument)';
+        }
+
+        field(111; "Azure Function Key"; Guid)
+        {
+            Caption = 'Azure Function Key';
+        }
     }
 
     keys
@@ -210,5 +284,87 @@ table 70000001 "MY eInv Setup"
         if "Token Expires At" <= CurrentDateTime then
             exit(false);
         exit(true);
+    end;
+
+    // Methods for secure certificate storage
+    procedure SetCertificatePassword(Password: Text)
+    begin
+        if not IsNullGuid("Certificate Password Key") then
+            IsolatedStorage.Delete("Certificate Password Key", DataScope::Company);
+
+        "Certificate Password Key" := CreateGuid();
+        IsolatedStorage.Set("Certificate Password Key", Password, DataScope::Company);
+    end;
+
+    procedure GetCertificatePassword(): Text
+    var
+        Password: Text;
+    begin
+        if IsNullGuid("Certificate Password Key") then
+            exit('');
+
+        if IsolatedStorage.Get("Certificate Password Key", DataScope::Company, Password) then
+            exit(Password);
+
+        exit('');
+    end;
+
+    procedure HasCertificate(): Boolean
+    begin
+        exit("Certificate Configured" and (not IsNullGuid("Certificate Password Key")));
+    end;
+
+    // Methods for secure certificate storage
+    /* [Scope('OnPrem')]
+    procedure SetCertificatePassword(Password: Text)
+    var
+        IsolatedStorageMgt: Codeunit "Isolated Storage Management";
+    begin
+        if not IsNullGuid("Certificate Password Key") then
+            IsolatedStorageMgt.Delete("Certificate Password Key", DataScope::Company);
+
+        "Certificate Password Key" := CreateGuid();
+        IsolatedStorageMgt.Set("Certificate Password Key", Password, DataScope::Company);
+    end;
+
+    procedure GetCertificatePassword(): Text
+    var
+        IsolatedStorageMgt: Codeunit "Isolated Storage Management";
+        Password: Text;
+    begin
+        if IsNullGuid("Certificate Password Key") then
+            exit('');
+
+        if IsolatedStorageMgt.Get("Certificate Password Key", DataScope::Company, Password) then
+            exit(Password);
+
+        exit('');
+    end;
+
+    procedure HasCertificate(): Boolean
+    begin
+        exit("Certificate Configured" and (not IsNullGuid("Certificate Password Key")));
+    end; */
+
+    procedure SetAzureFunctionKey(KeyValue: Text)
+    begin
+        if not IsNullGuid("Azure Function Key") then
+            IsolatedStorage.Delete("Azure Function Key", DataScope::Company);
+
+        "Azure Function Key" := CreateGuid();
+        IsolatedStorage.Set("Azure Function Key", KeyValue, DataScope::Company);
+    end;
+
+    procedure GetAzureFunctionKey(): Text
+    var
+        KeyValue: Text;
+    begin
+        if IsNullGuid("Azure Function Key") then
+            exit('');
+
+        if IsolatedStorage.Get("Azure Function Key", DataScope::Company, KeyValue) then
+            exit(KeyValue);
+
+        exit('');
     end;
 }
