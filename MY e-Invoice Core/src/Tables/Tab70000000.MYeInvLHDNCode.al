@@ -17,6 +17,10 @@ table 70000000 "MY eInv LHDN Code"
             Caption = 'Code';
             DataClassification = SystemMetadata;
         }
+        field(3; "BC Document Source"; Enum "BC Document Source")
+        {
+            DataClassification = ToBeClassified;
+        }
         field(10; Description; Text[250])
         {
             Caption = 'Description';

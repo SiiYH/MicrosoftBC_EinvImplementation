@@ -194,11 +194,11 @@ codeunit 70000000 "MY eInv LHDN Code Synch"
             CodeType::Classification,
             CodeType::Country,
             CodeType::Currency,
-            CodeType::"E-Invoice Type",
             CodeType::MSIC,
             CodeType::"Payment Mode",
             CodeType::State,
             CodeType::"Tax Type",
+            CodeType::"E-Invoice Type",
             CodeType::"Unit of Measurement":
                 Code := GetJsonValue(JsonObj, 'Code'); // All use 'Code'
         end;
