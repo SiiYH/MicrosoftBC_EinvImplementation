@@ -373,8 +373,8 @@ codeunit 70000008 "MY eInv Submission"
                 // Generate XML
                 InvoiceXML := XMLGenerator.GenerateInvoiceXML(SalesInvoiceHeader);
 
-                // Sign if needed (assuming you have a signing mechanism)
-                if Setup."Require Digital Signature" then  // Adjust field name as needed
+                // Sign if Document Version 1.1 is selected (With Signature)
+                if Setup."Document Version" = Setup."Document Version"::"1.1" then
                     SignedXML := DigitalSignature.SignDocument(InvoiceXML, Setup)
                 else
                     SignedXML := InvoiceXML;

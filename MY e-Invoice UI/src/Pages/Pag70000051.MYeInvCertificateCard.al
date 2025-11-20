@@ -3,7 +3,7 @@ page 70000051 "MY eInv Certificate Card"
     PageType = CardPart;
     ApplicationArea = All;
     SourceTable = "MY eInv Setup";
-    Caption = 'Digital Certificate';
+    Caption = 'MY eInvoice Digital Certificate';
     InsertAllowed = false;
     DeleteAllowed = false;
 
