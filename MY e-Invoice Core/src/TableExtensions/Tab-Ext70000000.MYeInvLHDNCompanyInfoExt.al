@@ -2,383 +2,427 @@ tableextension 70000000 "MY eInv LHDN Company Info Ext" extends "Company Informa
 {
     fields
     {
-        // === Core Company Identification for E-Invoice ===
-        field(70000001; "E-Invoice TIN"; Text[20])
+        // ═════════════════════════════════════════════════════════════
+        // E-Invoice Configuration
+        // ═════════════════════════════════════════════════════════════
+        field(70000100; "MY eInv Enabled"; Boolean)
         {
-            Caption = 'Tax Identification Number (TIN)';
+            Caption = 'E-Invoice Enabled';
             DataClassification = CustomerContent;
 
             trigger OnValidate()
             begin
-                if "E-Invoice TIN" <> '' then
-                    ValidateTIN();
+                if "MY eInv Enabled" then
+                    ValidateEInvoiceSetup();
             end;
         }
 
-        field(70000002; "E-Invoice ID Type"; Enum "MY eInv ID Type")
+        field(70000101; "MY eInv Entity Type"; Enum "MY eInv Entity Type")
         {
-            Caption = 'Identification Type';
+            Caption = 'Entity Type';
             DataClassification = CustomerContent;
-            InitValue = TIN;
+
+            trigger OnValidate()
+            begin
+                UpdateRequiredFieldsVisibility();
+            end;
         }
 
-        field(70000003; "E-Invoice ID Value"; Text[50])
+        // ═════════════════════════════════════════════════════════════
+        // Tax Identification Number (MANDATORY FOR ALL)
+        // Format: 13 digits (e.g., IG12345678901)
+        // ═════════════════════════════════════════════════════════════
+        field(70000102; "MY eInv TIN"; Text[20])
         {
-            Caption = 'Identification Value';
+            Caption = 'TIN (Tax Identification Number)';
+            DataClassification = CustomerContent;
+
+            trigger OnValidate()
+            begin
+                "MY eInv TIN" := UpperCase(DelChr("MY eInv TIN", '=', ' '));
+                ValidateTINFormat();
+            end;
+        }
+
+        // ═════════════════════════════════════════════════════════════
+        // Business Registration Number (For Business Entities)
+        // NEW FORMAT: 12-digit SSM number (Effective Jan 2023)
+        // OLD FORMAT: 6-8 digits with check digit
+        // ═════════════════════════════════════════════════════════════
+        field(70000103; "MY eInv BRN"; Text[20])
+        {
+            Caption = 'BRN (Business Registration No.)';
+            DataClassification = CustomerContent;
+
+            trigger OnValidate()
+            begin
+                "MY eInv BRN" := DelChr("MY eInv BRN", '=', ' -()');
+                ValidateBRNFormat();
+            end;
+        }
+
+        // ═════════════════════════════════════════════════════════════
+        // NRIC/MyKad (For Malaysian Individuals)
+        // Format: 12 digits (YYMMDD-PB-###G)
+        // ═════════════════════════════════════════════════════════════
+        field(70000104; "MY eInv NRIC"; Text[14])
+        {
+            Caption = 'NRIC/MyKad Number';
+            DataClassification = CustomerContent;
+
+            trigger OnValidate()
+            begin
+                "MY eInv NRIC" := DelChr("MY eInv NRIC", '=', ' -');
+                ValidateNRICFormat();
+            end;
+        }
+
+        // ═════════════════════════════════════════════════════════════
+        // Passport Number (For Non-Malaysian Individuals)
+        // ═════════════════════════════════════════════════════════════
+        field(70000105; "MY eInv Passport No."; Text[20])
+        {
+            Caption = 'Passport Number';
+            DataClassification = CustomerContent;
+
+            trigger OnValidate()
+            begin
+                "MY eInv Passport No." := UpperCase(DelChr("MY eInv Passport No.", '=', ' '));
+            end;
+        }
+
+        // ═════════════════════════════════════════════════════════════
+        // MyTentera/Army Number (For Malaysian Military Personnel)
+        // ═════════════════════════════════════════════════════════════
+        field(70000106; "MY eInv Army No."; Text[20])
+        {
+            Caption = 'MyTentera/Army Number';
             DataClassification = CustomerContent;
         }
 
-        field(70000004; "E-Invoice BRN"; Text[20])
-        {
-            Caption = 'Business Registration Number (BRN)';
-            DataClassification = CustomerContent;
-        }
-
-        field(70000005; "E-Invoice SST No."; Text[20])
+        // ═════════════════════════════════════════════════════════════
+        // Sales & Service Tax (SST) Registration
+        // ═════════════════════════════════════════════════════════════
+        field(70000107; "MY eInv SST No."; Text[20])
         {
             Caption = 'SST Registration Number';
             DataClassification = CustomerContent;
         }
 
-        field(70000006; "E-Invoice TTx No."; Text[20])
+        field(70000108; "MY eInv Tourism Tax No."; Text[20])
         {
-            Caption = 'Tourism Tax Registration Number';
+            Caption = 'Tourism Tax Registration No.';
             DataClassification = CustomerContent;
         }
 
-        // === Business Classification ===
-        field(70000010; "E-Invoice MSIC Code"; Code[10])
+        // ═════════════════════════════════════════════════════════════
+        // Business Classification (MSIC Code)
+        // Malaysian Standard Industrial Classification
+        // ═════════════════════════════════════════════════════════════
+        field(70000109; "MY eInv MSIC Code"; Code[20])
         {
             Caption = 'MSIC Code';
             DataClassification = CustomerContent;
-            TableRelation = "MY eInv LHDN Code"."Code" where("Code Type" = const(MSIC), Active = const(true));
+            TableRelation = "MY eInv LHDN Code".Code where("Code Type" = const(MSIC));
 
             trigger OnValidate()
             var
                 LHDNCode: Record "MY eInv LHDN Code";
             begin
-                if "E-Invoice MSIC Code" <> '' then begin
-                    LHDNCode.Get("E-Invoice MSIC Code", LHDNCode."Code Type"::MSIC);
-                    "E-Invoice MSIC Description" := LHDNCode.Description;
+                if "MY eInv MSIC Code" <> '' then begin
+                    if LHDNCode.Get(LHDNCode."Code Type"::MSIC, "MY eInv MSIC Code") then begin
+                        "MY eInv MSIC Description" := LHDNCode.Description;
+                        "MY eInv Business Activity" := LHDNCode.Description;
+                    end;
                 end else
-                    "E-Invoice MSIC Description" := '';
+                    "MY eInv MSIC Description" := '';
             end;
         }
 
-        field(70000011; "E-Invoice MSIC Description"; Text[100])
+        field(70000110; "MY eInv MSIC Description"; Text[100])
         {
             Caption = 'MSIC Description';
             DataClassification = CustomerContent;
             Editable = false;
         }
 
-        field(70000012; "E-Invoice Business Activity"; Text[100])
+        field(70000111; "MY eInv Business Activity"; Text[100])
         {
             Caption = 'Business Activity Description';
             DataClassification = CustomerContent;
         }
 
-        // === Address for E-Invoice (May differ from standard address) ===
-        field(70000020; "E-Invoice Address"; Text[100])
+        // ═════════════════════════════════════════════════════════════
+        // State Code (Required for Malaysian Entities)
+        // ═════════════════════════════════════════════════════════════
+        field(70000112; "MY eInv State Code"; Code[20])
         {
-            Caption = 'E-Invoice Address Line 1';
+            Caption = 'State Code';
+            DataClassification = CustomerContent;
+            TableRelation = "MY eInv LHDN Code".Code where("Code Type" = const("State"));
+
+            trigger OnValidate()
+            var
+                LHDNCode: Record "MY eInv LHDN Code";
+            begin
+                if "MY eInv State Code" <> '' then begin
+                    if LHDNCode.Get(LHDNCode."Code Type"::State, "MY eInv State Code") then
+                        "MY eInv State Name" := LHDNCode.Description;
+                end else
+                    "MY eInv State Name" := '';
+            end;
+        }
+
+        field(70000113; "MY eInv State Name"; Text[50])
+        {
+            Caption = 'State Name';
+            DataClassification = CustomerContent;
+            Editable = false;
+        }
+
+        // ═════════════════════════════════════════════════════════════
+        // Contact Information (For E-Invoice Communication)
+        // ═════════════════════════════════════════════════════════════
+        field(70000114; "MY eInv Contact Name"; Text[100])
+        {
+            Caption = 'Contact Person Name';
             DataClassification = CustomerContent;
         }
 
-        field(70000021; "E-Invoice Address 2"; Text[100])
+        field(70000115; "MY eInv Contact Phone"; Text[20])
         {
-            Caption = 'E-Invoice Address Line 2';
-            DataClassification = CustomerContent;
-        }
-
-        field(70000022; "E-Invoice Address 3"; Text[100])
-        {
-            Caption = 'E-Invoice Address Line 3';
-            DataClassification = CustomerContent;
-        }
-
-        field(70000023; "E-Invoice City"; Text[50])
-        {
-            Caption = 'E-Invoice City';
-            DataClassification = CustomerContent;
-        }
-
-        field(70000024; "E-Invoice State"; Code[20])
-        {
-            Caption = 'E-Invoice State';
-            DataClassification = CustomerContent;
-            TableRelation = "MY eInv LHDN Code"."Code" where("Code Type" = const(State), Active = const(true));
-        }
-
-        field(70000025; "E-Invoice Post Code"; Code[20])
-        {
-            Caption = 'E-Invoice Post Code';
-            DataClassification = CustomerContent;
-        }
-
-        field(70000026; "E-Invoice Country/Region"; Code[10])
-        {
-            Caption = 'E-Invoice Country/Region Code';
-            DataClassification = CustomerContent;
-            TableRelation = "Country/Region";
-        }
-
-        // === Contact Information ===
-        field(70000030; "E-Invoice Contact Number"; Text[20])
-        {
-            Caption = 'E-Invoice Contact Number';
+            Caption = 'Contact Phone Number';
             DataClassification = CustomerContent;
             ExtendedDatatype = PhoneNo;
         }
 
-        field(70000031; "E-Invoice Email"; Text[80])
+        field(70000116; "MY eInv Contact Email"; Text[80])
         {
-            Caption = 'E-Invoice Email';
+            Caption = 'Contact Email';
             DataClassification = CustomerContent;
             ExtendedDatatype = EMail;
         }
-
-        // === Default Settings ===
-        field(70000040; "E-Invoice Default Currency"; Code[10])
-        {
-            Caption = 'Default Currency Code';
-            DataClassification = CustomerContent;
-            TableRelation = Currency;
-            InitValue = 'MYR';
-        }
-
-        field(70000041; "E-Invoice Default Doc Type"; Enum "MY eInv Document Type")
-        {
-            Caption = 'Default Document Type';
-            DataClassification = CustomerContent;
-        }
-
-        field(70000042; "E-Invoice Default Class"; Enum "MY eInv Classification")
-        {
-            Caption = 'Default Classification';
-            DataClassification = CustomerContent;
-        }
-
-        // === Validation Flags ===
-        field(70000050; "E-Invoice Setup Complete"; Boolean)
-        {
-            Caption = 'E-Invoice Setup Complete';
-            DataClassification = CustomerContent;
-            Editable = false;
-        }
-
-        field(70000051; "E-Invoice Last Validated"; DateTime)
-        {
-            Caption = 'Last Configuration Validation';
-            DataClassification = CustomerContent;
-            Editable = false;
-        }
     }
 
-    local procedure ValidateTIN()
+    // ═════════════════════════════════════════════════════════════════
+    // Validation Procedures
+    // ═════════════════════════════════════════════════════════════════
+
+    local procedure ValidateEInvoiceSetup()
     var
-        InvalidTINErr: Label 'Invalid TIN format. TIN must be in format:\- C + 14 digits (e.g., C12345678901234) for Malaysian companies\- IG + 14 digits (e.g., IG12345678901234) for non-residents';
-        Char1: Text[1];
+        ConfirmQst: Label 'This will enable Malaysian E-Invoice features for this company.\Do you want to continue?';
+        SuccessMsg: Label 'E-Invoice has been enabled.\Please complete the required fields based on your entity type:\• TIN (Mandatory for all)\• BRN (For business entities)\• NRIC (For Malaysian individuals)\• Passport (For non-Malaysian individuals)';
     begin
-        // TIN should be 15 characters
-        if StrLen("E-Invoice TIN") <> 15 then
-            Error(InvalidTINErr);
+        if not Confirm(ConfirmQst, false) then begin
+            "MY eInv Enabled" := false;
+            exit;
+        end;
 
-        Char1 := CopyStr("E-Invoice TIN", 1, 1);
-
-        // First character must be 'C' for companies or 'I' for individuals/non-residents
-        if not (Char1 in ['C', 'I']) then
-            Error(InvalidTINErr);
-
-        // If starts with 'I', second character should be 'G'
-        if (Char1 = 'I') and (CopyStr("E-Invoice TIN", 2, 1) <> 'G') then
-            Error(InvalidTINErr);
+        Message(SuccessMsg);
     end;
 
-    procedure ValidateEInvoiceSetup(): Boolean
+    local procedure ValidateTINFormat()
     var
-        EInvSetup: Record "MY eInv Setup";
-        CompanyInfo: Record "Company Information";
-        ValidationMsg: Text;
-        IsValid: Boolean;
+        InvalidTINErr: Label 'Invalid TIN format. Expected 13 digits starting with "IG" for individuals or "C" for companies.';
     begin
-        IsValid := true;
-        ValidationMsg := '';
-
-        CompanyInfo.Get();
-
-        // Check TIN
-        if CompanyInfo."E-Invoice TIN" = '' then begin
-            ValidationMsg += '- Tax Identification Number (TIN) is required\';
-            IsValid := false;
-        end;
-
-        // Check BRN
-        if CompanyInfo."E-Invoice BRN" = '' then begin
-            ValidationMsg += '- Business Registration Number (BRN) is required\';
-            IsValid := false;
-        end;
-
-        // Check MSIC Code
-        if CompanyInfo."E-Invoice MSIC Code" = '' then begin
-            ValidationMsg += '- MSIC Code is required\';
-            IsValid := false;
-        end;
-
-        // Check Address
-        if (CompanyInfo."E-Invoice Address" = '') and (CompanyInfo.Address = '') then begin
-            ValidationMsg += '- Business address is required\';
-            IsValid := false;
-        end;
-
-        // Check Setup Table
-        if not EInvSetup.Get() then begin
-            ValidationMsg += '- E-Invoice Setup record is missing. Please run E-Invoice Setup.\';
-            IsValid := false;
-        end else begin
-            // Check API Credentials
-            if (EInvSetup.GetClientID() = '') or (EInvSetup.GetClientSecret() = '') then begin
-                ValidationMsg += '- MyInvois API credentials are not configured\';
-                IsValid := false;
-            end;
-
-            // Check Certificate for Document Version 1.1
-            if (EInvSetup."Document Version" = EInvSetup."Document Version"::"1.1") and
-               (not EInvSetup.HasCertificate())
-            then begin
-                ValidationMsg += '- Digital certificate is required for Document Version 1.1\';
-                IsValid := false;
-            end;
-
-            // Check Azure Function for signing
-            if (EInvSetup."Document Version" = EInvSetup."Document Version"::"1.1") and
-               ((EInvSetup."Azure Function URL" = '') or (EInvSetup.GetAzureFunctionKey() = ''))
-            then begin
-                ValidationMsg += '- Azure Function signing service is not configured\';
-                IsValid := false;
-            end;
-        end;
-
-        CompanyInfo."E-Invoice Setup Complete" := IsValid;
-        CompanyInfo."E-Invoice Last Validated" := CurrentDateTime;
-        CompanyInfo.Modify();
-
-        if not IsValid then
-            Message('E-Invoice setup is incomplete:\%1\Please complete the setup before submitting invoices.', ValidationMsg)
-        else
-            Message('E-Invoice setup validation passed successfully!');
-
-        exit(IsValid);
-    end;
-
-    procedure CopyStandardAddressToEInvoice()
-    var
-        CompanyInfo: Record "Company Information";
-        ConfirmQst: Label 'This will copy the standard company address to E-Invoice address fields. Continue?';
-    begin
-        if not Confirm(ConfirmQst, false) then
+        if "MY eInv TIN" = '' then
             exit;
 
-        CompanyInfo.Get();
-        CompanyInfo."E-Invoice Address" := CompanyInfo.Address;
-        CompanyInfo."E-Invoice Address 2" := CompanyInfo."Address 2";
-        CompanyInfo."E-Invoice City" := CompanyInfo.City;
-        CompanyInfo."E-Invoice Post Code" := CompanyInfo."Post Code";
-        CompanyInfo."E-Invoice Country/Region" := CompanyInfo."Country/Region Code";
-
-        if CompanyInfo."Phone No." <> '' then
-            CompanyInfo."E-Invoice Contact Number" := CompanyInfo."Phone No.";
-
-        if CompanyInfo."E-Mail" <> '' then
-            CompanyInfo."E-Invoice Email" := CompanyInfo."E-Mail";
-
-        CompanyInfo.Modify(true);
-        Message('Company address has been copied to E-Invoice fields.');
+        // TIN format: 13 characters
+        // New format (from Jan 2023): IG + 11 digits for individuals, C + 12 digits for companies
+        if StrLen("MY eInv TIN") < 12 then
+            Error(InvalidTINErr);
     end;
 
-    procedure GetEInvoiceAddress(var Address1: Text[100]; var Address2: Text[100]; var Address3: Text[100]; var City: Text[50]; var PostCode: Code[20]; var StateCode: Code[20]; var CountryCode: Code[10])
+    local procedure ValidateBRNFormat()
     var
-        CompanyInfo: Record "Company Information";
+        InvalidBRNErr: Label 'Invalid BRN format. Expected 12-digit new SSM format (e.g., 202001012345) or old format with check digit.';
     begin
-        CompanyInfo.Get();
+        if "MY eInv BRN" = '' then
+            exit;
 
-        // Use E-Invoice specific address if filled, otherwise fall back to standard address
-        if CompanyInfo."E-Invoice Address" <> '' then
-            Address1 := CompanyInfo."E-Invoice Address"
-        else
-            Address1 := CompanyInfo.Address;
-
-        if CompanyInfo."E-Invoice Address 2" <> '' then
-            Address2 := CompanyInfo."E-Invoice Address 2"
-        else
-            Address2 := CompanyInfo."Address 2";
-
-        Address3 := CompanyInfo."E-Invoice Address 3";
-
-        if CompanyInfo."E-Invoice City" <> '' then
-            City := CompanyInfo."E-Invoice City"
-        else
-            City := CompanyInfo.City;
-
-        if CompanyInfo."E-Invoice Post Code" <> '' then
-            PostCode := CompanyInfo."E-Invoice Post Code"
-        else
-            PostCode := CompanyInfo."Post Code";
-
-        StateCode := CompanyInfo."E-Invoice State";
-
-        if CompanyInfo."E-Invoice Country/Region" <> '' then
-            CountryCode := CompanyInfo."E-Invoice Country/Region"
-        else
-            CountryCode := CompanyInfo."Country/Region Code";
+        // New SSM BRN: 12 digits (Effective since Jan 2023)
+        // Old BRN: Variable length with check digit in brackets
+        if StrLen("MY eInv BRN") < 10 then
+            Error(InvalidBRNErr);
     end;
 
-    procedure ShowSetupStatus()
+    local procedure ValidateNRICFormat()
     var
-        EInvSetup: Record "MY eInv Setup";
-        StatusMsg: Text;
-        TINStatus: Text;
-        CertStatus: Text;
-        APIStatus: Text;
-        AzureStatus: Text;
+        InvalidNRICErr: Label 'Invalid NRIC format. Expected 12 digits (YYMMDD-PB-###G format without dashes).';
     begin
-        // TIN Status
-        if "E-Invoice TIN" <> '' then
-            TINStatus := '✓ Configured'
-        else
-            TINStatus := '✗ Missing';
+        if "MY eInv NRIC" = '' then
+            exit;
 
-        // Certificate Status
-        if EInvSetup.Get() and EInvSetup.HasCertificate() then
-            CertStatus := StrSubstNo('✓ Valid until %1', Format(EInvSetup."Certificate Valid To"))
-        else
-            CertStatus := '✗ Not configured';
+        // NRIC format: 12 digits (YYMMDD-PB-###G)
+        // Remove any dashes for storage
+        if StrLen("MY eInv NRIC") <> 12 then
+            Error(InvalidNRICErr);
+    end;
 
-        // API Status
-        if EInvSetup.Get() and (EInvSetup.GetClientID() <> '') then begin
-            if EInvSetup.IsTokenValid() then
-                APIStatus := '✓ Connected'
+    local procedure UpdateRequiredFieldsVisibility()
+    begin
+        // This would be used in page extensions to show/hide fields
+    end;
+
+    // ═════════════════════════════════════════════════════════════════
+    // Validation for E-Invoice Submission
+    // ═════════════════════════════════════════════════════════════════
+
+    procedure ValidateForEInvoice(): Boolean
+    var
+        MissingTINErr: Label 'TIN is required for e-invoicing. All taxpayers must have a valid TIN.';
+        MissingBRNErr: Label 'BRN is required for business entities.';
+        MissingNRICErr: Label 'NRIC/MyKad is required for Malaysian individuals.';
+        MissingPassportErr: Label 'Passport number is required for non-Malaysian individuals.';
+        MissingAddressErr: Label 'Company address is required for e-invoicing.';
+        MissingCityErr: Label 'City is required for e-invoicing.';
+        MissingCountryErr: Label 'Country/Region Code is required for e-invoicing.';
+        MissingStateErr: Label 'State Code is required for Malaysian entities.';
+        MissingMSICErr: Label 'MSIC Code is recommended for business entities.';
+    begin
+        // TIN is MANDATORY for all taxpayers
+        if "MY eInv TIN" = '' then
+            Error(MissingTINErr);
+
+        // Validate based on entity type
+        case "MY eInv Entity Type" of
+            "MY eInv Entity Type"::"Malaysian Business",
+            "MY eInv Entity Type"::"Non-Malaysian Business":
+                begin
+                    if "MY eInv BRN" = '' then
+                        Error(MissingBRNErr);
+
+                    // MSIC code recommended but not mandatory
+                    if "MY eInv MSIC Code" = '' then
+                        if not Confirm(MissingMSICErr + '\Do you want to continue without MSIC Code?', false) then
+                            Error('');
+                end;
+
+            "MY eInv Entity Type"::"Malaysian Individual":
+                if "MY eInv NRIC" = '' then
+                    Error(MissingNRICErr);
+
+            "MY eInv Entity Type"::"Non-Malaysian Individual":
+                if "MY eInv Passport No." = '' then
+                    Error(MissingPassportErr);
+
+            "MY eInv Entity Type"::Government:
+                if "MY eInv BRN" = '' then
+                    Error(MissingBRNErr);
+        end;
+
+        // Validate address (required for all)
+        if Address = '' then
+            Error(MissingAddressErr);
+
+        if City = '' then
+            Error(MissingCityErr);
+
+        if "Country/Region Code" = '' then
+            Error(MissingCountryErr);
+
+        // State code REQUIRED for Malaysian entities
+        if IsMalaysianEntity() then
+            if "MY eInv State Code" = '' then
+                Error(MissingStateErr);
+
+        exit(true);
+    end;
+
+    procedure IsMalaysianEntity(): Boolean
+    begin
+        exit("MY eInv Entity Type" in [
+            "MY eInv Entity Type"::"Malaysian Business",
+            "MY eInv Entity Type"::"Malaysian Individual"
+        ]);
+    end;
+
+    // ═════════════════════════════════════════════════════════════════
+    // Get Identification Number for UBL XML
+    // ═════════════════════════════════════════════════════════════════
+
+    procedure GetSupplierIdentificationNumber(): Text
+    begin
+        // Return the appropriate ID based on entity type
+        // Priority: TIN → BRN/NRIC/Passport
+
+        // Always return TIN if available
+        if "MY eInv TIN" <> '' then
+            exit("MY eInv TIN");
+
+        // Fallback to entity-specific IDs
+        case "MY eInv Entity Type" of
+            "MY eInv Entity Type"::"Malaysian Business",
+            "MY eInv Entity Type"::"Non-Malaysian Business",
+            "MY eInv Entity Type"::Government:
+                if "MY eInv BRN" <> '' then
+                    exit("MY eInv BRN");
+
+            "MY eInv Entity Type"::"Malaysian Individual":
+                if "MY eInv NRIC" <> '' then
+                    exit("MY eInv NRIC");
+
+            "MY eInv Entity Type"::"Non-Malaysian Individual":
+                if "MY eInv Passport No." <> '' then
+                    exit("MY eInv Passport No.");
+        end;
+
+        exit("MY eInv TIN");
+    end;
+
+    procedure GetSupplierIdentificationType(): Code[10]
+    begin
+        // Return the ID type code for UBL XML SchemeID attribute
+        // Based on LHDN e-Invoice specifications
+
+        case "MY eInv Entity Type" of
+            "MY eInv Entity Type"::"Malaysian Business",
+            "MY eInv Entity Type"::"Non-Malaysian Business",
+            "MY eInv Entity Type"::Government:
+                exit('BRN'); // Business Registration Number
+
+            "MY eInv Entity Type"::"Malaysian Individual":
+                exit('NRIC'); // National Registration Identity Card
+
+            "MY eInv Entity Type"::"Non-Malaysian Individual":
+                exit('PASSPORT'); // Passport Number
+
             else
-                APIStatus := '⚠ Token expired';
-        end else
-            APIStatus := '✗ Not configured';
+                exit('TIN'); // Tax Identification Number (default)
+        end;
+    end;
 
-        // Azure Function Status
-        if EInvSetup.Get() and (EInvSetup."Azure Function URL" <> '') then
-            AzureStatus := '✓ Configured'
-        else
-            AzureStatus := '✗ Not configured';
+    // ═════════════════════════════════════════════════════════════════
+    // General TIN Codes (Based on LHDN Official Guidelines)
+    // ═════════════════════════════════════════════════════════════════
 
-        StatusMsg := StrSubstNo(
-            'E-Invoice Setup Status:\' +
-            'TIN: %1\' +
-            'Digital Certificate: %2\' +
-            'MyInvois API: %3\' +
-            'Azure Signing Service: %4\' +
-            '\Setup Complete: %5',
-            TINStatus, CertStatus, APIStatus, AzureStatus,
-            Format("E-Invoice Setup Complete"));
+    procedure GetGeneralTINCode(ScenarioCode: Code[20]): Code[20]
+    begin
+        // General TIN codes for specific scenarios (LHDN Official):
+        // EI00000000010 - General Public's TIN
+        // EI00000000020 - Foreign Buyer's/Foreign Shipping Recipient's TIN
+        // EI00000000030 - Foreign Supplier's TIN
+        // EI00000000040 - Government/Government Authorities TIN
 
-        Message(StatusMsg);
+        case ScenarioCode of
+            'GENERALPUBLIC':
+                exit('EI00000000010'); // Local individual with NRIC only, or consolidated e-invoice
+            'FOREIGNBUYER':
+                exit('EI00000000020'); // Foreign buyer with Passport/MyPR/MyKas, or export transactions
+            'FOREIGNSUPPLIER':
+                exit('EI00000000030'); // Foreign supplier in self-billed e-invoice or import
+            'GOVERNMENT':
+                exit('EI00000000040'); // Government entities or exempt institutions without TIN
+            else
+                exit('');
+        end;
+    end;
+
+    procedure ShouldUseGeneralTIN(CustomerTIN: Text): Boolean
+    begin
+        // Determine if General TIN should be used
+        // Return TRUE if customer only provided NRIC/Passport without TIN
+        exit(CustomerTIN = '');
     end;
 }

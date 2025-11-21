@@ -233,11 +233,11 @@ codeunit 70000000 "MY eInv LHDN Code Synch"
             ParentCode := GetJsonValue(JsonObj, 'MSIC Category Reference');
 
         // Tax rate (for tax types only - check if this field exists)
-        if CodeType = CodeType::"Tax Type" then begin
+        /* if CodeType = CodeType::"Tax Type" then begin
             if GetJsonDecimal(JsonObj, 'Rate', TaxRate) or
                GetJsonDecimal(JsonObj, 'TaxRate', TaxRate)
             then;
-        end;
+        end; */
 
         if Code = '' then
             exit; // Skip if no code found

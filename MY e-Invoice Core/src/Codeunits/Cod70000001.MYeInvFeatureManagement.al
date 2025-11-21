@@ -5,7 +5,7 @@ codeunit 70000001 "MY eInv Feature Management"
         CompanyInfo: Record "Company Information";
     begin
         if CompanyInfo.Get() then
-            exit(CompanyInfo."Enable E-Invoice");
+            exit(CompanyInfo."MY eInv Enabled");
         exit(false);
     end;
 
@@ -22,7 +22,7 @@ codeunit 70000001 "MY eInv Feature Management"
         CompanyInfo: Record "Company Information";
     begin
         if CompanyInfo.Get() then
-            exit(CompanyInfo."LHDN TIN");
+            exit(CompanyInfo."MY eInv TIN");
         exit('');
     end;
 
