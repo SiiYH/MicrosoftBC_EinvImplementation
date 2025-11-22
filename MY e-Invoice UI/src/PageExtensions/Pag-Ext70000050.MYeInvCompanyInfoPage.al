@@ -7,12 +7,17 @@ pageextension 70000050 "MY eInv Company Info Page" extends "Company Information"
             group("MY E-Invoice")
             {
                 Caption = 'Malaysian E-Invoice (LHDN MyInvois)';
-
                 field("MY eInv Enabled"; Rec."MY eInv Enabled")
                 {
                     ApplicationArea = All;
                     ToolTip = 'Enable Malaysian E-Invoice features for this company.';
                     StyleExpr = EInvoiceStyleExpr;
+                    trigger OnValidate()
+                    begin
+                        UpdateFieldVisibility();
+                        CurrPage.Update(true);
+                        CurrPage.Activate(true);
+                    end;
                 }
 
                 field("MY eInv Entity Type"; Rec."MY eInv Entity Type")
@@ -26,6 +31,8 @@ pageextension 70000050 "MY eInv Company Info Page" extends "Company Information"
                     trigger OnValidate()
                     begin
                         UpdateFieldVisibility();
+                        CurrPage.Update(true);
+                        CurrPage.Activate(true);
                     end;
                 }
 
@@ -46,13 +53,13 @@ pageextension 70000050 "MY eInv Company Info Page" extends "Company Information"
                 group("Business Registration")
                 {
                     Caption = 'Business Registration (For Companies)';
-                    Visible = ShowBusinessFields;
+                    Enabled = ShowBusinessFields;
 
                     field("MY eInv BRN"; Rec."MY eInv BRN")
                     {
                         ApplicationArea = All;
-                        ToolTip = 'Business Registration Number - New 12-digit SSM format (e.g., 202001012345) or old format with check digit.';
                         ShowMandatory = ShowBusinessFields;
+                        ToolTip = 'Business Registration Number - New 12-digit SSM format (e.g., 202001012345) or old format with check digit.';
                     }
 
                     field("MY eInv SST No."; Rec."MY eInv SST No.")
@@ -89,13 +96,14 @@ pageextension 70000050 "MY eInv Company Info Page" extends "Company Information"
                 group("Individual Identification")
                 {
                     Caption = 'Individual Identification';
-                    Visible = ShowIndividualFields;
+
+                    // Add this to help with visibility updates
+                    Enabled = ShowIndividualFields;
 
                     field("MY eInv NRIC"; Rec."MY eInv NRIC")
                     {
                         ApplicationArea = All;
                         ToolTip = 'NRIC/MyKad Number - 12 digits (format: YYMMDD-PB-###G without dashes).';
-                        Visible = ShowMalaysianIndividualFields;
                         ShowMandatory = ShowMalaysianIndividualFields;
                     }
 
@@ -103,7 +111,6 @@ pageextension 70000050 "MY eInv Company Info Page" extends "Company Information"
                     {
                         ApplicationArea = All;
                         ToolTip = 'Passport Number (for non-Malaysian individuals).';
-                        Visible = ShowNonMalaysianIndividualFields;
                         ShowMandatory = ShowNonMalaysianIndividualFields;
                     }
 
@@ -111,7 +118,6 @@ pageextension 70000050 "MY eInv Company Info Page" extends "Company Information"
                     {
                         ApplicationArea = All;
                         ToolTip = 'MyTentera/Army Number (for Malaysian military personnel).';
-                        Visible = ShowMalaysianIndividualFields;
                     }
                 }
 
@@ -120,12 +126,23 @@ pageextension 70000050 "MY eInv Company Info Page" extends "Company Information"
                     Caption = 'Location Details';
                     Visible = Rec."MY eInv Enabled";
 
-                    field("MY eInv State Code"; Rec."MY eInv State Code")
+                    field("Company Post Code"; Rec."Post Code")
                     {
                         ApplicationArea = All;
-                        ToolTip = 'Malaysian State Code (MANDATORY for Malaysian entities). Select from LHDN Code table.';
-                        Visible = ShowMalaysianLocationFields;
-                        ShowMandatory = ShowMalaysianLocationFields;
+                        ToolTip = 'Post Code';
+                    }
+
+                    group(StateCodeGroup)
+                    {
+                        ShowCaption = false;
+
+                        field("MY eInv State Code"; Rec."MY eInv State Code")
+                        {
+                            ApplicationArea = All;
+                            ToolTip = 'Malaysian State Code (MANDATORY for Malaysian entities). Select from LHDN Code table.';
+                            Visible = ShowMalaysianLocationFields;
+                            ShowMandatory = ShowMalaysianLocationFields;
+                        }
                     }
 
                     field("MY eInv State Name"; Rec."MY eInv State Name")
@@ -139,7 +156,6 @@ pageextension 70000050 "MY eInv Company Info Page" extends "Company Information"
                 group("Contact Information")
                 {
                     Caption = 'Contact Information (For E-Invoice)';
-                    Visible = Rec."MY eInv Enabled";
 
                     field("MY eInv Contact Name"; Rec."MY eInv Contact Name")
                     {
@@ -165,18 +181,40 @@ pageextension 70000050 "MY eInv Company Info Page" extends "Company Information"
 
     actions
     {
+
         addafter(Codes)
         {
             group("MY E-Invoice Actions")
             {
                 Caption = 'E-Invoice';
                 Image = ElectronicDoc;
+                action(UpdateStateCodeFromPostCode)
+                {
+                    Caption = 'Update State Code from Post Code';
+                    ApplicationArea = All;
+                    Image = Refresh;
+                    ToolTip = 'Update State Code based on current Post Code';
 
+                    trigger OnAction()
+                    var
+                        PostCode: Record "Post Code";
+                    begin
+                        if Rec."Post Code" = '' then begin
+                            Message('Please enter Post Code first.');
+                            exit;
+                        end;
+
+                        if Dialog.Confirm('Update State Code from Post Code %1?', true, Rec."Post Code") then begin
+                            Rec.Validate("MY eInv State Code", PostCode.GetStateCodeFromPostCode(Rec."Post Code"));
+                            CurrPage.Update(true);
+                        end;
+                    end;
+                }
                 action(ValidateEInvoiceSetup)
                 {
                     Caption = 'Validate E-Invoice Setup';
                     ApplicationArea = All;
-                    Image = Validate;
+                    Image = ValidateEmailLoggingSetup;
                     ToolTip = 'Validate that all required fields are correctly filled according to LHDN requirements.';
 
                     trigger OnAction()
@@ -212,6 +250,11 @@ pageextension 70000050 "MY eInv Company Info Page" extends "Company Information"
             }
         }
     }
+    trigger OnOpenPage()
+    begin
+        UpdateFieldVisibility();
+        SetStyles();
+    end;
 
     trigger OnAfterGetCurrRecord()
     begin

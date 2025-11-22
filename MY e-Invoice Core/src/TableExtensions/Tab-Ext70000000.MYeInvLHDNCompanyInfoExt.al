@@ -202,6 +202,8 @@ tableextension 70000000 "MY eInv LHDN Company Info Ext" extends "Company Informa
             DataClassification = CustomerContent;
             ExtendedDatatype = EMail;
         }
+
+
     }
 
     // ═════════════════════════════════════════════════════════════════

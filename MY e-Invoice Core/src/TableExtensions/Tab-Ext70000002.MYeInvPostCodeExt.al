@@ -7,6 +7,13 @@ tableextension 70000002 "MY eInv Post Code Ext" extends "Post Code"
             Caption = 'MY eInv State Code';
             TableRelation = "MY eInv LHDN Code".Code where("Code Type" = const(State));
         }
+        field(70000001; "MY eInv State Description"; Text[250])
+        {
+            Caption = 'MY eInv State Description';
+            FieldClass = FlowField;
+            CalcFormula = Lookup("MY eInv LHDN Code".Description WHERE(Code = FIELD("MY eInv State Code"), "Code Type" = CONST("State")));
+            Editable = false;
+        }
     }
 
     procedure GetStateCodeFromPostCode(PostCode: Code[20]): Code[20]
@@ -24,7 +31,7 @@ tableextension 70000002 "MY eInv Post Code Ext" extends "Post Code"
         case PostCodePrefix of
             '01' .. '02':
                 exit(FindStateCode('Perlis'));
-            '05' .. '20':
+            '05' .. '06':
                 exit(FindStateCode('Kedah'));
             '10' .. '14':
                 exit(FindStateCode('Pulau Pinang'));
@@ -55,7 +62,7 @@ tableextension 70000002 "MY eInv Post Code Ext" extends "Post Code"
             '62':
                 exit(FindStateCode('Wilayah Persekutuan Putrajaya'));
             else
-                exit('');
+                exit(FindStateCode('Not Applicable'));
         end;
     end;
 

@@ -313,4 +313,34 @@ codeunit 70000000 "MY eInv LHDN Code Synch"
             end;
         exit(false);
     end;
+
+    procedure UpdateAllStateCodesFromPostCode()
+    var
+        PostCode: Record "Post Code";
+        ConfirmMsg: Label 'This will update MY eInv State Code for all customers based on their Post Code.\\Existing state codes will be overwritten.\\Do you want to continue?';
+        UpdatedCount: Integer;
+        SkippedCount: Integer;
+        SuccessMsg: Label 'Update completed:\\- %1 post code(s) updated\\- %2 post code(s) skipped (no matching state code found)';
+    begin
+        // Confirm with default = false (No button is default)
+        if not Dialog.Confirm(ConfirmMsg, false) then
+            exit;
+
+        PostCode.SetRange(PostCode."Country/Region Code", 'MY');
+        if PostCode.FindSet(true) then begin
+            repeat
+                PostCode."MY eInv State Code" := PostCode.GetStateCodeFromPostCode(PostCode."Code");
+                if PostCode."MY eInv State Code" <> '' then begin
+                    PostCode.Modify(true);
+                    UpdatedCount += 1;
+                end else
+                    SkippedCount += 1;
+            until PostCode.Next() = 0;
+        end;
+
+        Message(SuccessMsg, UpdatedCount, SkippedCount);
+    end;
+
+
+
 }
