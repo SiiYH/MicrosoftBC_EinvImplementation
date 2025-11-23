@@ -124,6 +124,57 @@ page 70000050 "MY eInv Setup Card"
                 }
             }
 
+            group(DocumentVersion)
+            {
+                Caption = 'Document Version Selection';
+                field("Document Version"; Rec."Document Version")
+                {
+                    ApplicationArea = All;
+                }
+                group(CertifateConfiguration)
+                {
+                    Caption = 'Certificate Configuration';
+
+                    field("Certificate Configured"; Rec."Certificate Configured")
+                    {
+                        ToolTip = 'Specifies the value of the Certificate Configured field.', Comment = '%';
+                    }
+                    field("Certificate Content"; Rec."Certificate Content")
+                    {
+                        ToolTip = 'Specifies the value of the Certificate Content field.', Comment = '%';
+                    }
+                    field("Certificate File Name"; Rec."Certificate File Name")
+                    {
+                        ToolTip = 'Name of the uploaded certificate file.';
+                    }
+                    field("Certificate Valid To"; Rec."Certificate Valid To")
+                    {
+                        ToolTip = 'Certificate expiry date.';
+                    }
+                    field("Certificate Issuer"; Rec."Certificate Issuer")
+                    {
+                        ToolTip = 'Certificate authority that issued this certificate.';
+                    }
+                    field("Certificate Subject"; Rec."Certificate Subject")
+                    {
+                        ToolTip = 'Certificate subject (organization details).';
+                    }
+                    field("Certificate Valid From"; Rec."Certificate Valid From")
+                    {
+                        ToolTip = 'Certificate validity start date.';
+                    }
+                    field("Certificate Password Key"; Rec."Certificate Password Key")
+                    {
+                        ToolTip = 'Specifies the value of the Certificate Password Key field.', Comment = '%';
+                    }
+                    field("Certificate Serial Number"; Rec."Certificate Serial Number")
+                    {
+                        ToolTip = 'Unique serial number of the certificate.';
+                    }
+                }
+
+            }
+
             group(TINVerification)
             {
                 Caption = 'TIN Verification';

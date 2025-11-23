@@ -85,4 +85,46 @@ codeunit 70000009 "MY eInv TIN Helper"
 
         exit(TIN);
     end;
+
+    procedure ValidateTINFormat(Tin: Text[20])
+    var
+        InvalidTINErr: Label 'Invalid TIN format.\Expected format:\• Individuals: IG + 9-11 digits (e.g., IG115002000)\• Companies: C + 11 digits (e.g., C20880050010)\• See TIN Category reference for other entity types.';
+    begin
+        if Tin = '' then
+            exit;
+
+        // TIN format: 13 characters
+        // New format (from Jan 2023): IG + 11 digits for individuals, C + 12 digits for companies
+        if StrLen(Tin) < 10 then
+            Error(InvalidTINErr);
+
+        // TIN validation can be enhanced based on prefix
+        // IG = Individual, C = Company, D = Partnership, etc.
+    end;
+
+    procedure ValidateBRNFormat("MY eInv BRN": Text[20])
+    var
+        InvalidBRNErr: Label 'Invalid BRN format. Expected 12-digit new SSM format (e.g., 202001012345) or old format with check digit.';
+    begin
+        if "MY eInv BRN" = '' then
+            exit;
+
+        // New SSM BRN: 12 digits (Effective since Jan 2023)
+        // Old BRN: Variable length with check digit in brackets
+        if StrLen("MY eInv BRN") < 10 then
+            Error(InvalidBRNErr);
+    end;
+
+    procedure ValidateNRICFormat("MY eInv NRIC": Text[14])
+    var
+        InvalidNRICErr: Label 'Invalid NRIC format. Expected 12 digits (YYMMDD-PB-###G format without dashes).';
+    begin
+        if "MY eInv NRIC" = '' then
+            exit;
+
+        // NRIC format: 12 digits (YYMMDD-PB-###G)
+        // Remove any dashes for storage
+        if StrLen("MY eInv NRIC") <> 12 then
+            Error(InvalidNRICErr);
+    end;
 }

@@ -38,9 +38,11 @@ tableextension 70000000 "MY eInv LHDN Company Info Ext" extends "Company Informa
             DataClassification = CustomerContent;
 
             trigger OnValidate()
+            var
+                MYeInvTINHelper: Codeunit "MY eInv TIN Helper";
             begin
                 "MY eInv TIN" := UpperCase(DelChr("MY eInv TIN", '=', ' '));
-                ValidateTINFormat();
+                MYeInvTINHelper.ValidateTINFormat("MY eInv TIN");
             end;
         }
 
@@ -55,9 +57,11 @@ tableextension 70000000 "MY eInv LHDN Company Info Ext" extends "Company Informa
             DataClassification = CustomerContent;
 
             trigger OnValidate()
+            var
+                MYeInvTINHelper: Codeunit "MY eInv TIN Helper";
             begin
                 "MY eInv BRN" := DelChr("MY eInv BRN", '=', ' -()');
-                ValidateBRNFormat();
+                MYeInvTINHelper.ValidateBRNFormat("MY eInv BRN");
             end;
         }
 
@@ -71,9 +75,11 @@ tableextension 70000000 "MY eInv LHDN Company Info Ext" extends "Company Informa
             DataClassification = CustomerContent;
 
             trigger OnValidate()
+            var
+                MYeInvTINHelper: Codeunit "MY eInv TIN Helper";
             begin
                 "MY eInv NRIC" := DelChr("MY eInv NRIC", '=', ' -');
-                ValidateNRICFormat();
+                MYeInvTINHelper.ValidateNRICFormat("MY eInv NRIC");
             end;
         }
 
@@ -223,44 +229,9 @@ tableextension 70000000 "MY eInv LHDN Company Info Ext" extends "Company Informa
         Message(SuccessMsg);
     end;
 
-    local procedure ValidateTINFormat()
-    var
-        InvalidTINErr: Label 'Invalid TIN format. Expected 13 digits starting with "IG" for individuals or "C" for companies.';
-    begin
-        if "MY eInv TIN" = '' then
-            exit;
 
-        // TIN format: 13 characters
-        // New format (from Jan 2023): IG + 11 digits for individuals, C + 12 digits for companies
-        if StrLen("MY eInv TIN") < 12 then
-            Error(InvalidTINErr);
-    end;
 
-    local procedure ValidateBRNFormat()
-    var
-        InvalidBRNErr: Label 'Invalid BRN format. Expected 12-digit new SSM format (e.g., 202001012345) or old format with check digit.';
-    begin
-        if "MY eInv BRN" = '' then
-            exit;
 
-        // New SSM BRN: 12 digits (Effective since Jan 2023)
-        // Old BRN: Variable length with check digit in brackets
-        if StrLen("MY eInv BRN") < 10 then
-            Error(InvalidBRNErr);
-    end;
-
-    local procedure ValidateNRICFormat()
-    var
-        InvalidNRICErr: Label 'Invalid NRIC format. Expected 12 digits (YYMMDD-PB-###G format without dashes).';
-    begin
-        if "MY eInv NRIC" = '' then
-            exit;
-
-        // NRIC format: 12 digits (YYMMDD-PB-###G)
-        // Remove any dashes for storage
-        if StrLen("MY eInv NRIC") <> 12 then
-            Error(InvalidNRICErr);
-    end;
 
     local procedure UpdateRequiredFieldsVisibility()
     begin
@@ -274,6 +245,7 @@ tableextension 70000000 "MY eInv LHDN Company Info Ext" extends "Company Informa
     procedure ValidateForEInvoice(): Boolean
     var
         MissingTINErr: Label 'TIN is required for e-invoicing. All taxpayers must have a valid TIN.';
+        MissingPhoneErr: Label 'Contact Phone is required for e-invoicing. All taxpayers must have a phone number.';
         MissingBRNErr: Label 'BRN is required for business entities.';
         MissingNRICErr: Label 'NRIC/MyKad is required for Malaysian individuals.';
         MissingPassportErr: Label 'Passport number is required for non-Malaysian individuals.';
@@ -281,11 +253,14 @@ tableextension 70000000 "MY eInv LHDN Company Info Ext" extends "Company Informa
         MissingCityErr: Label 'City is required for e-invoicing.';
         MissingCountryErr: Label 'Country/Region Code is required for e-invoicing.';
         MissingStateErr: Label 'State Code is required for Malaysian entities.';
-        MissingMSICErr: Label 'MSIC Code is recommended for business entities.';
+        MissingMSICErr: Label 'MSIC Code is required for business entities.';
     begin
         // TIN is MANDATORY for all taxpayers
         if "MY eInv TIN" = '' then
             Error(MissingTINErr);
+
+        if "MY eInv Contact Phone" = '' then
+            Error(MissingPhoneErr);
 
         // Validate based on entity type
         case "MY eInv Entity Type" of
@@ -297,8 +272,8 @@ tableextension 70000000 "MY eInv LHDN Company Info Ext" extends "Company Informa
 
                     // MSIC code recommended but not mandatory
                     if "MY eInv MSIC Code" = '' then
-                        if not Confirm(MissingMSICErr + '\Do you want to continue without MSIC Code?', false) then
-                            Error('');
+                        // if not Confirm(MissingMSICErr + '\Do you want to continue without MSIC Code?', false) then
+                            Error(MissingMSICErr);
                 end;
 
             "MY eInv Entity Type"::"Malaysian Individual":

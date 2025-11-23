@@ -195,9 +195,8 @@ table 70000002 "MY eInv Submission Log"
         field(30; "Document Type Description"; Text[250])
         {
             Caption = 'Document Type';
-            CalcFormula = Lookup("MY eInv LHDN Code".Description
-        WHERE(Code = FIELD("Document Type"),
-              "Code Type" = CONST("E-Invoice Type")));
+            CalcFormula = Lookup("MY eInv LHDN Code".Description WHERE(Code = FIELD("Document Type"),
+                          "Code Type" = CONST("E-Invoice Type")));
             FieldClass = FlowField;
             Editable = false;
         }
@@ -416,7 +415,7 @@ table 70000002 "MY eInv Submission Log"
             if not SalesInvoiceHeader.Get("Document No.") then
                 Error('Sales Invoice %1 not found.', "Document No.");
 
-            Submission.SubmitDocument(XMLText, SalesInvoiceHeader);
+            Submission.SubmitInvoice(XMLText, SalesInvoiceHeader);
         end
         // Sales Credit Memo: 02 (Credit Note), 04 (Refund Note)
         else if "Document Type" in ['02', '04'] then begin

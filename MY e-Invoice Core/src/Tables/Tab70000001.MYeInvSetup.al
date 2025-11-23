@@ -105,6 +105,27 @@ table 70000001 "MY eInv Setup"
             MinValue = 10;
             MaxValue = 300;
         }
+        field(63; "Prompt Submit On Post"; Boolean)
+        {
+            Caption = 'Prompt Submit on Post';
+            DataClassification = CustomerContent;
+            InitValue = true;
+        }
+        field(64; "Enable Auto Submission"; Boolean)
+        {
+            DataClassification = CustomerContent;
+            InitValue = false;
+        }
+        field(65; "Show Submission Errors"; Boolean)
+        {
+            DataClassification = CustomerContent;
+            InitValue = true;
+        }
+        field(66; "Show Submission Success"; Boolean)
+        {
+            DataClassification = CustomerContent;
+            InitValue = true;
+        }
         field(100; "Document Version"; Option)
         {
             Caption = 'Document Version';
@@ -113,8 +134,8 @@ table 70000001 "MY eInv Setup"
 
             trigger OnValidate()
             begin
-                if "Document Version" = "Document Version"::"1.1" then
-                    TestField("Certificate Configured", true);
+                /* if "Document Version" = "Document Version"::"1.1" then
+                    TestField("Certificate Configured", true); */
             end;
         }
 

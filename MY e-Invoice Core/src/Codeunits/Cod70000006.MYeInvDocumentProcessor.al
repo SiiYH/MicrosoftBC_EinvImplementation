@@ -5,34 +5,55 @@ codeunit 70000006 "MY eInv Document Processor"
 {
     procedure ProcessSalesInvoice(SalesInvoiceHeader: Record "Sales Invoice Header")
     var
+        InvoiceDoc: Codeunit "MY eInv Sales Invoice Doc";
+        Document: Interface "MY eInv Document";
+    begin
+        InvoiceDoc.SetDocument(SalesInvoiceHeader);
+        Document := InvoiceDoc;
+        ProcessDocument(Document);
+    end;
+
+    procedure ProcessSalesCreditMemo(SalesCrMemoHeader: Record "Sales Cr.Memo Header")
+    var
+        CrMemoDoc: Codeunit "MY eInv Sales CrMemo Doc";
+        Document: Interface "MY eInv Document";
+    begin
+        CrMemoDoc.SetDocument(SalesCrMemoHeader);
+        Document := CrMemoDoc;
+        ProcessDocument(Document);
+    end;
+
+    local procedure ProcessDocument(Document: Interface "MY eInv Document")
+    var
         Setup: Record "MY eInv Setup";
         XMLGenerator: Codeunit "MY eInv XML Generator";
         DigitalSignature: Codeunit "MY eInv Digital Signature";
         Submission: Codeunit "MY eInv Submission";
-        InvoiceXML: Text;
+        DocumentXML: Text;
         SignedXML: Text;
         SubmissionResult: Boolean;
+        RecordVariant: Variant;
     begin
         // Get setup
         Setup.Get();
 
+        // Get the actual record
+        Document.GetDocumentRecord(RecordVariant);
+
         // Step 1: Generate UBL XML
-        InvoiceXML := XMLGenerator.GenerateInvoiceXML(SalesInvoiceHeader);
+        DocumentXML := XMLGenerator.GenerateDocumentXML(RecordVariant, Document.GetDocumentType());
 
         // Step 2: Sign if version 1.1
         if Setup."Document Version" = Setup."Document Version"::"1.1" then begin
-            SignedXML := DigitalSignature.SignDocument(InvoiceXML, Setup);
-
-            // Step 3: Submit signed document
-            SubmissionResult := Submission.SubmitDocument(SignedXML, SalesInvoiceHeader);
+            SignedXML := DigitalSignature.SignDocument(DocumentXML, Setup);
+            SubmissionResult := Submission.SubmitDocument(SignedXML, RecordVariant, Document.GetDocumentType());
         end else begin
-            // Submit unsigned for v1.0
-            SubmissionResult := Submission.SubmitDocument(InvoiceXML, SalesInvoiceHeader);
+            SubmissionResult := Submission.SubmitDocument(DocumentXML, RecordVariant, Document.GetDocumentType());
         end;
 
         if SubmissionResult then
-            Message('Invoice %1 submitted successfully to MyInvois.', SalesInvoiceHeader."No.")
+            Message('%1 %2 submitted successfully to MyInvois.', Document.GetDocumentType(), Document.GetDocumentNo())
         else
-            Error('Failed to submit invoice %1.', SalesInvoiceHeader."No.");
+            Error('Failed to submit %1 %2.', Document.GetDocumentType(), Document.GetDocumentNo());
     end;
 }
