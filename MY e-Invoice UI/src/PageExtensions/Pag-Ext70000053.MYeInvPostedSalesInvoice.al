@@ -170,11 +170,34 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                     ApplicationArea = All;
                     Image = XMLFile;
                     ToolTip = 'Download the UBL 2.1 XML document that was submitted.';
-                    Enabled = Rec."MY eInv Submitted";
+                    // Enabled = Rec."MY eInv Submitted";
 
                     trigger OnAction()
+                    var
+                        SalesInvoiceHeader: Record "Sales Invoice Header";
+                        XMLGenerator: Codeunit "MY eInv XML Generator";
+                        TempBlob: Codeunit "Temp Blob";
+                        InStr: InStream;
+                        OutStr: OutStream;
+                        XMLText: Text;
+                        FileName: Text;
                     begin
-                        DownloadSubmittedXML();
+                        SalesInvoiceHeader := Rec;
+
+                        // Generate XML
+                        XMLText := XMLGenerator.GenerateInvoiceXML(SalesInvoiceHeader);
+
+                        // Create file name
+                        FileName := SalesInvoiceHeader."No." + '_eInvoice.xml';
+
+                        // Write to TempBlob
+                        TempBlob.CreateOutStream(OutStr, TextEncoding::UTF8);
+                        OutStr.WriteText(XMLText);
+
+                        // Download file
+                        TempBlob.CreateInStream(InStr, TextEncoding::UTF8);
+                        DownloadFromStream(InStr, 'Download XML', '', 'XML Files (*.xml)|*.xml', FileName);
+                        // DownloadSubmittedXML();
                     end;
                 }
 

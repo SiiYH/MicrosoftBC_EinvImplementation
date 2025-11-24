@@ -4,6 +4,7 @@ page 70000003 "MY eInv Submission Log List"
     Caption = 'MY eInv Submission Log List';
     PageType = List;
     SourceTable = "MY eInv Submission Log";
+    UsageCategory = Administration;
 
     layout
     {

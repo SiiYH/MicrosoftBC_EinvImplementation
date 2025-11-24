@@ -1,6 +1,9 @@
 // ═════════════════════════════════════════════════════════════════
 // MY eInv XML Generator - UBL 2.1 Invoice Generation
 // ═════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════
+// MY eInv XML Generator - UBL 2.1 Invoice Generation (FIXED)
+// ═════════════════════════════════════════════════════════════════
 codeunit 70000007 "MY eInv XML Generator"
 {
 
@@ -70,37 +73,47 @@ codeunit 70000007 "MY eInv XML Generator"
     // INVOICE SPECIFIC
     local procedure BuildInvoiceStructure(var RootElement: XmlElement; SalesInvoiceHeader: Record "Sales Invoice Header")
     begin
-        AddUBLVersionID(RootElement);
-        AddCustomizationID(RootElement);
-        AddProfileID(RootElement);
-        AddElement(RootElement, 'cbc:InvoiceTypeCode', '01'); // Invoice type
-        AddDocumentCurrencyCode(RootElement, SalesInvoiceHeader."Currency Code");
+        // Add basic invoice information
         AddElement(RootElement, 'cbc:ID', SalesInvoiceHeader."No.");
         AddElement(RootElement, 'cbc:IssueDate', Format(SalesInvoiceHeader."Posting Date", 0, '<Year4>-<Month,2>-<Day,2>'));
         AddElement(RootElement, 'cbc:IssueTime', Format(Time, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>Z'));
+        AddElement(RootElement, 'cbc:InvoiceTypeCode', '01'); // Invoice type
+        AddDocumentCurrencyCode(RootElement, SalesInvoiceHeader."Currency Code");
 
+        // Add optional invoice period
         AddInvoicePeriod(RootElement, SalesInvoiceHeader."Posting Date");
+
+        // Add billing reference if exists
         AddBillingReference(RootElement, SalesInvoiceHeader."Order No.");
+
+        // Add parties
         AddSupplierPartyFromInvoice(RootElement, SalesInvoiceHeader);
         AddCustomerPartyFromInvoice(RootElement, SalesInvoiceHeader);
-        AddDelivery(RootElement, SalesInvoiceHeader."Posting Date");
+
+        // Add delivery information
+        AddDeliveryFromInvoice(RootElement, SalesInvoiceHeader);
+
+        // Add payment means
         AddPaymentMeans(RootElement);
+
+        // Add tax totals
         AddTaxTotalFromInvoice(RootElement, SalesInvoiceHeader);
+
+        // Add monetary totals
         AddLegalMonetaryTotalFromInvoice(RootElement, SalesInvoiceHeader);
+
+        // Add invoice lines
         AddInvoiceLines(RootElement, SalesInvoiceHeader);
     end;
 
     // CREDIT MEMO SPECIFIC
     local procedure BuildCreditMemoStructure(var RootElement: XmlElement; SalesCrMemoHeader: Record "Sales Cr.Memo Header")
     begin
-        AddUBLVersionID(RootElement);
-        AddCustomizationID(RootElement);
-        AddProfileID(RootElement);
-        AddElement(RootElement, 'cbc:CreditNoteTypeCode', '02'); // Credit note type
-        AddDocumentCurrencyCode(RootElement, SalesCrMemoHeader."Currency Code");
         AddElement(RootElement, 'cbc:ID', SalesCrMemoHeader."No.");
         AddElement(RootElement, 'cbc:IssueDate', Format(SalesCrMemoHeader."Posting Date", 0, '<Year4>-<Month,2>-<Day,2>'));
         AddElement(RootElement, 'cbc:IssueTime', Format(Time, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>Z'));
+        AddElement(RootElement, 'cbc:CreditNoteTypeCode', '02'); // Credit note type
+        AddDocumentCurrencyCode(RootElement, SalesCrMemoHeader."Currency Code");
 
         // Add billing reference to original invoice if applicable
         if SalesCrMemoHeader."Applies-to Doc. No." <> '' then
@@ -109,7 +122,7 @@ codeunit 70000007 "MY eInv XML Generator"
         AddInvoicePeriod(RootElement, SalesCrMemoHeader."Posting Date");
         AddSupplierPartyFromCreditMemo(RootElement, SalesCrMemoHeader);
         AddCustomerPartyFromCreditMemo(RootElement, SalesCrMemoHeader);
-        AddDelivery(RootElement, SalesCrMemoHeader."Posting Date");
+        AddDeliveryFromCreditMemo(RootElement, SalesCrMemoHeader);
         AddPaymentMeans(RootElement);
         AddTaxTotalFromCreditMemo(RootElement, SalesCrMemoHeader);
         AddLegalMonetaryTotalFromCreditMemo(RootElement, SalesCrMemoHeader);
@@ -119,19 +132,10 @@ codeunit 70000007 "MY eInv XML Generator"
     local procedure CreateCreditNoteRootElement(): XmlElement
     var
         RootElement: XmlElement;
-        Xmlns: XmlAttribute;
     begin
-        RootElement := XmlElement.Create('CreditNote'); // Different root element
-
-        Xmlns := XmlAttribute.CreateNamespaceDeclaration('', 'urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2');
-        RootElement.Add(Xmlns);
-
-        Xmlns := XmlAttribute.CreateNamespaceDeclaration('cac', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        RootElement.Add(Xmlns);
-
-        Xmlns := XmlAttribute.CreateNamespaceDeclaration('cbc', 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2');
-        RootElement.Add(Xmlns);
-
+        RootElement := XmlElement.Create('CreditNote', 'urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2');
+        RootElement.Add(XmlAttribute.CreateNamespaceDeclaration('cac', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2'));
+        RootElement.Add(XmlAttribute.CreateNamespaceDeclaration('cbc', 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2'));
         exit(RootElement);
     end;
 
@@ -140,34 +144,31 @@ codeunit 70000007 "MY eInv XML Generator"
     var
         RootElement: XmlElement;
     begin
-        // Create the Invoice element with the default namespace
         RootElement := XmlElement.Create('Invoice', 'urn:oasis:names:specification:ubl:schema:xsd:Invoice-2');
-
-        // Add the prefixed namespace declarations
         RootElement.Add(XmlAttribute.CreateNamespaceDeclaration('cac', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2'));
         RootElement.Add(XmlAttribute.CreateNamespaceDeclaration('cbc', 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2'));
-
         exit(RootElement);
     end;
 
-    local procedure AddUBLVersionID(var ParentElement: XmlElement)
-    begin
-        AddElement(ParentElement, 'cbc:UBLVersionID', '2.1');
-    end;
-
-    local procedure AddCustomizationID(var ParentElement: XmlElement)
-    begin
-        AddElement(ParentElement, 'cbc:CustomizationID', 'urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0');
-    end;
-
-    local procedure AddProfileID(var ParentElement: XmlElement)
-    begin
-        AddElement(ParentElement, 'cbc:ProfileID', 'urn:fdc:peppol.eu:2017:poacc:billing:01:1.0');
-    end;
-
     local procedure AddDocumentCurrencyCode(var ParentElement: XmlElement; CurrencyCode: Code[10])
+    var
+        CurrCode: Code[10];
     begin
-        AddElement(ParentElement, 'cbc:DocumentCurrencyCode', CurrencyCode);
+        // Handle empty currency code - default to LCY
+        if CurrencyCode = '' then begin
+            CurrCode := GetLCYCode();
+        end else
+            CurrCode := CurrencyCode;
+
+        AddElement(ParentElement, 'cbc:DocumentCurrencyCode', CurrCode);
+    end;
+
+    local procedure GetLCYCode(): Code[10]
+    var
+        GeneralLedgerSetup: Record "General Ledger Setup";
+    begin
+        GeneralLedgerSetup.Get();
+        exit(GeneralLedgerSetup."LCY Code");
     end;
 
     local procedure AddInvoicePeriod(var ParentElement: XmlElement; PostingDate: Date)
@@ -183,20 +184,32 @@ codeunit 70000007 "MY eInv XML Generator"
     local procedure AddBillingReference(var ParentElement: XmlElement; ReferenceNo: Code[20])
     var
         BillingRefElement: XmlElement;
+        AdditionalDocRefElement: XmlElement;
     begin
         if ReferenceNo <> '' then begin
-            BillingRefElement := XmlElement.Create('cac:BillingReference', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-            AddElement(BillingRefElement, 'cbc:ID', ReferenceNo);
+            BillingRefElement := XmlElement.Create('BillingReference', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+            AdditionalDocRefElement := XmlElement.Create('AdditionalDocumentReference', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+            AddElement(AdditionalDocRefElement, 'cbc:ID', ReferenceNo);
+            BillingRefElement.Add(AdditionalDocRefElement);
             ParentElement.Add(BillingRefElement);
         end;
     end;
 
-    local procedure AddDelivery(var ParentElement: XmlElement; DeliveryDate: Date)
+    local procedure AddDeliveryFromInvoice(var ParentElement: XmlElement; SalesInvoiceHeader: Record "Sales Invoice Header")
     var
         DeliveryElement: XmlElement;
     begin
-        DeliveryElement := XmlElement.Create('cac:Delivery', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        AddElement(DeliveryElement, 'cbc:ActualDeliveryDate', Format(DeliveryDate, 0, '<Year4>-<Month,2>-<Day,2>'));
+        DeliveryElement := XmlElement.Create('Delivery', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        AddElement(DeliveryElement, 'cbc:ActualDeliveryDate', Format(SalesInvoiceHeader."Posting Date", 0, '<Year4>-<Month,2>-<Day,2>'));
+        ParentElement.Add(DeliveryElement);
+    end;
+
+    local procedure AddDeliveryFromCreditMemo(var ParentElement: XmlElement; SalesCrMemoHeader: Record "Sales Cr.Memo Header")
+    var
+        DeliveryElement: XmlElement;
+    begin
+        DeliveryElement := XmlElement.Create('Delivery', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        AddElement(DeliveryElement, 'cbc:ActualDeliveryDate', Format(SalesCrMemoHeader."Posting Date", 0, '<Year4>-<Month,2>-<Day,2>'));
         ParentElement.Add(DeliveryElement);
     end;
 
@@ -204,7 +217,7 @@ codeunit 70000007 "MY eInv XML Generator"
     var
         PaymentElement: XmlElement;
     begin
-        PaymentElement := XmlElement.Create('cac:PaymentMeans', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        PaymentElement := XmlElement.Create('PaymentMeans', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(PaymentElement, 'cbc:PaymentMeansCode', '01');
         ParentElement.Add(PaymentElement);
     end;
@@ -267,22 +280,31 @@ codeunit 70000007 "MY eInv XML Generator"
         PartyElement: XmlElement;
         PostalElement: XmlElement;
         LegalElement: XmlElement;
+        StateCode: Text;
     begin
-        SupplierElement := XmlElement.Create('cac:AccountingSupplierParty', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        PartyElement := XmlElement.Create('cac:Party', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        SupplierElement := XmlElement.Create('AccountingSupplierParty', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        PartyElement := XmlElement.Create('Party', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
 
         AddPartyIdentification(PartyElement, CompanyInfo."Registration No.", 'TIN');
 
-        PostalElement := XmlElement.Create('cac:PostalAddress', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        AddElement(PostalElement, 'cbc:CityName', CompanyInfo.City);
-        AddElement(PostalElement, 'cbc:PostalZone', CompanyInfo."Post Code");
-        AddElement(PostalElement, 'cbc:CountrySubentityCode', PostCodeRec.GetStateCodeFromPostCode(CompanyInfo."Post Code"));
+        PostalElement := XmlElement.Create('PostalAddress', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+
+        if CompanyInfo.City <> '' then
+            AddElement(PostalElement, 'cbc:CityName', CompanyInfo.City);
+        if CompanyInfo."Post Code" <> '' then
+            AddElement(PostalElement, 'cbc:PostalZone', CompanyInfo."Post Code");
+
+        // Get state code from post code
+        StateCode := GetStateCodeFromPostCode(CompanyInfo."Post Code");
+        if StateCode <> '' then
+            AddElement(PostalElement, 'cbc:CountrySubentityCode', StateCode);
+
         AddAddressLine(PostalElement, CompanyInfo.Address);
         AddAddressLine(PostalElement, CompanyInfo."Address 2");
         AddCountry(PostalElement, CompanyInfo."Country/Region Code");
         PartyElement.Add(PostalElement);
 
-        LegalElement := XmlElement.Create('cac:PartyLegalEntity', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        LegalElement := XmlElement.Create('PartyLegalEntity', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(LegalElement, 'cbc:RegistrationName', CompanyInfo.Name);
         PartyElement.Add(LegalElement);
 
@@ -297,22 +319,30 @@ codeunit 70000007 "MY eInv XML Generator"
         PartyElement: XmlElement;
         PostalElement: XmlElement;
         LegalElement: XmlElement;
+        StateCode: Text;
     begin
-        CustomerElement := XmlElement.Create('cac:AccountingCustomerParty', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        PartyElement := XmlElement.Create('cac:Party', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        CustomerElement := XmlElement.Create('AccountingCustomerParty', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        PartyElement := XmlElement.Create('Party', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
 
         AddPartyIdentification(PartyElement, VATRegNo, 'TIN');
 
-        PostalElement := XmlElement.Create('cac:PostalAddress', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        AddElement(PostalElement, 'cbc:CityName', City);
-        AddElement(PostalElement, 'cbc:PostalZone', PostCode);
-        AddElement(PostalElement, 'cbc:CountrySubentityCode', PostCodeRec.GetStateCodeFromPostCode(PostCode));
+        PostalElement := XmlElement.Create('PostalAddress', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+
+        if City <> '' then
+            AddElement(PostalElement, 'cbc:CityName', City);
+        if PostCode <> '' then
+            AddElement(PostalElement, 'cbc:PostalZone', PostCode);
+
+        StateCode := GetStateCodeFromPostCode(PostCode);
+        if StateCode <> '' then
+            AddElement(PostalElement, 'cbc:CountrySubentityCode', StateCode);
+
         AddAddressLine(PostalElement, Address);
         AddAddressLine(PostalElement, Address2);
         AddCountry(PostalElement, CountryCode);
         PartyElement.Add(PostalElement);
 
-        LegalElement := XmlElement.Create('cac:PartyLegalEntity', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        LegalElement := XmlElement.Create('PartyLegalEntity', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(LegalElement, 'cbc:RegistrationName', Name);
         PartyElement.Add(LegalElement);
 
@@ -320,12 +350,27 @@ codeunit 70000007 "MY eInv XML Generator"
         ParentElement.Add(CustomerElement);
     end;
 
-    // TAX AND MONETARY - Continue pattern...
+    local procedure GetStateCodeFromPostCode(PostCode: Code[20]): Text
+    var
+        PostCodeRec: Record "Post Code";
+    begin
+        if PostCode = '' then
+            exit('');
+
+        PostCodeRec.SetRange(Code, PostCode);
+        if PostCodeRec.FindFirst() then
+            exit(PostCodeRec.County);
+
+        exit('');
+    end;
+
+    // TAX AND MONETARY
     local procedure AddTaxTotalFromInvoice(var ParentElement: XmlElement; SalesInvoiceHeader: Record "Sales Invoice Header")
     var
         SalesInvoiceLine: Record "Sales Invoice Line";
         TotalTaxAmount: Decimal;
         TaxableAmount: Decimal;
+        CurrencyCode: Code[10];
     begin
         SalesInvoiceLine.SetRange("Document No.", SalesInvoiceHeader."No.");
         if SalesInvoiceLine.FindSet() then
@@ -334,7 +379,12 @@ codeunit 70000007 "MY eInv XML Generator"
                 TaxableAmount += SalesInvoiceLine.Amount;
             until SalesInvoiceLine.Next() = 0;
 
-        AddTaxTotal(ParentElement, TotalTaxAmount, TaxableAmount, SalesInvoiceHeader."Currency Code");
+        if SalesInvoiceHeader."Currency Code" = '' then
+            CurrencyCode := GetLCYCode()
+        else
+            CurrencyCode := SalesInvoiceHeader."Currency Code";
+
+        AddTaxTotal(ParentElement, TotalTaxAmount, TaxableAmount, CurrencyCode);
     end;
 
     local procedure AddTaxTotalFromCreditMemo(var ParentElement: XmlElement; SalesCrMemoHeader: Record "Sales Cr.Memo Header")
@@ -342,6 +392,7 @@ codeunit 70000007 "MY eInv XML Generator"
         SalesCrMemoLine: Record "Sales Cr.Memo Line";
         TotalTaxAmount: Decimal;
         TaxableAmount: Decimal;
+        CurrencyCode: Code[10];
     begin
         SalesCrMemoLine.SetRange("Document No.", SalesCrMemoHeader."No.");
         if SalesCrMemoLine.FindSet() then
@@ -350,7 +401,12 @@ codeunit 70000007 "MY eInv XML Generator"
                 TaxableAmount += SalesCrMemoLine.Amount;
             until SalesCrMemoLine.Next() = 0;
 
-        AddTaxTotal(ParentElement, TotalTaxAmount, TaxableAmount, SalesCrMemoHeader."Currency Code");
+        if SalesCrMemoHeader."Currency Code" = '' then
+            CurrencyCode := GetLCYCode()
+        else
+            CurrencyCode := SalesCrMemoHeader."Currency Code";
+
+        AddTaxTotal(ParentElement, TotalTaxAmount, TaxableAmount, CurrencyCode);
     end;
 
     local procedure AddTaxTotal(var ParentElement: XmlElement; TotalTaxAmount: Decimal; TaxableAmount: Decimal; CurrencyCode: Code[10])
@@ -360,18 +416,18 @@ codeunit 70000007 "MY eInv XML Generator"
         TaxCategoryElement: XmlElement;
         TaxSchemeElement: XmlElement;
     begin
-        TaxTotalElement := XmlElement.Create('cac:TaxTotal', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        TaxTotalElement := XmlElement.Create('TaxTotal', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddAmountElement(TaxTotalElement, 'cbc:TaxAmount', TotalTaxAmount, CurrencyCode);
 
-        TaxSubtotalElement := XmlElement.Create('cac:TaxSubtotal', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        TaxSubtotalElement := XmlElement.Create('TaxSubtotal', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddAmountElement(TaxSubtotalElement, 'cbc:TaxableAmount', TaxableAmount, CurrencyCode);
         AddAmountElement(TaxSubtotalElement, 'cbc:TaxAmount', TotalTaxAmount, CurrencyCode);
 
-        TaxCategoryElement := XmlElement.Create('cac:TaxCategory', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        TaxCategoryElement := XmlElement.Create('TaxCategory', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(TaxCategoryElement, 'cbc:ID', 'S');
         AddElement(TaxCategoryElement, 'cbc:Percent', '6.00');
 
-        TaxSchemeElement := XmlElement.Create('cac:TaxScheme', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        TaxSchemeElement := XmlElement.Create('TaxScheme', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(TaxSchemeElement, 'cbc:ID', 'SST');
         TaxCategoryElement.Add(TaxSchemeElement);
 
@@ -380,13 +436,13 @@ codeunit 70000007 "MY eInv XML Generator"
         ParentElement.Add(TaxTotalElement);
     end;
 
-    // Continue similar pattern for monetary totals and lines...
     local procedure AddLegalMonetaryTotalFromInvoice(var ParentElement: XmlElement; SalesInvoiceHeader: Record "Sales Invoice Header")
     var
         SalesInvoiceLine: Record "Sales Invoice Line";
         LineExtensionAmount: Decimal;
         TaxExclusiveAmount: Decimal;
         TaxInclusiveAmount: Decimal;
+        CurrencyCode: Code[10];
     begin
         SalesInvoiceLine.SetRange("Document No.", SalesInvoiceHeader."No.");
         if SalesInvoiceLine.FindSet() then
@@ -396,7 +452,12 @@ codeunit 70000007 "MY eInv XML Generator"
                 TaxInclusiveAmount += SalesInvoiceLine."Amount Including VAT";
             until SalesInvoiceLine.Next() = 0;
 
-        AddLegalMonetaryTotal(ParentElement, LineExtensionAmount, TaxExclusiveAmount, TaxInclusiveAmount, SalesInvoiceHeader."Currency Code");
+        if SalesInvoiceHeader."Currency Code" = '' then
+            CurrencyCode := GetLCYCode()
+        else
+            CurrencyCode := SalesInvoiceHeader."Currency Code";
+
+        AddLegalMonetaryTotal(ParentElement, LineExtensionAmount, TaxExclusiveAmount, TaxInclusiveAmount, CurrencyCode);
     end;
 
     local procedure AddLegalMonetaryTotalFromCreditMemo(var ParentElement: XmlElement; SalesCrMemoHeader: Record "Sales Cr.Memo Header")
@@ -405,6 +466,7 @@ codeunit 70000007 "MY eInv XML Generator"
         LineExtensionAmount: Decimal;
         TaxExclusiveAmount: Decimal;
         TaxInclusiveAmount: Decimal;
+        CurrencyCode: Code[10];
     begin
         SalesCrMemoLine.SetRange("Document No.", SalesCrMemoHeader."No.");
         if SalesCrMemoLine.FindSet() then
@@ -414,14 +476,19 @@ codeunit 70000007 "MY eInv XML Generator"
                 TaxInclusiveAmount += SalesCrMemoLine."Amount Including VAT";
             until SalesCrMemoLine.Next() = 0;
 
-        AddLegalMonetaryTotal(ParentElement, LineExtensionAmount, TaxExclusiveAmount, TaxInclusiveAmount, SalesCrMemoHeader."Currency Code");
+        if SalesCrMemoHeader."Currency Code" = '' then
+            CurrencyCode := GetLCYCode()
+        else
+            CurrencyCode := SalesCrMemoHeader."Currency Code";
+
+        AddLegalMonetaryTotal(ParentElement, LineExtensionAmount, TaxExclusiveAmount, TaxInclusiveAmount, CurrencyCode);
     end;
 
     local procedure AddLegalMonetaryTotal(var ParentElement: XmlElement; LineExtensionAmount: Decimal; TaxExclusiveAmount: Decimal; TaxInclusiveAmount: Decimal; CurrencyCode: Code[10])
     var
         MonetaryElement: XmlElement;
     begin
-        MonetaryElement := XmlElement.Create('cac:LegalMonetaryTotal', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        MonetaryElement := XmlElement.Create('LegalMonetaryTotal', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddAmountElement(MonetaryElement, 'cbc:LineExtensionAmount', LineExtensionAmount, CurrencyCode);
         AddAmountElement(MonetaryElement, 'cbc:TaxExclusiveAmount', TaxExclusiveAmount, CurrencyCode);
         AddAmountElement(MonetaryElement, 'cbc:TaxInclusiveAmount', TaxInclusiveAmount, CurrencyCode);
@@ -432,28 +499,40 @@ codeunit 70000007 "MY eInv XML Generator"
     local procedure AddInvoiceLines(var ParentElement: XmlElement; SalesInvoiceHeader: Record "Sales Invoice Header")
     var
         SalesInvoiceLine: Record "Sales Invoice Line";
+        CurrencyCode: Code[10];
     begin
+        if SalesInvoiceHeader."Currency Code" = '' then
+            CurrencyCode := GetLCYCode()
+        else
+            CurrencyCode := SalesInvoiceHeader."Currency Code";
+
         SalesInvoiceLine.SetRange("Document No.", SalesInvoiceHeader."No.");
         SalesInvoiceLine.SetFilter(Type, '<>%1', SalesInvoiceLine.Type::" ");
         if SalesInvoiceLine.FindSet() then
             repeat
                 AddInvoiceLine(ParentElement, SalesInvoiceLine."Line No.", SalesInvoiceLine.Quantity,
                     SalesInvoiceLine."Unit of Measure Code", SalesInvoiceLine.Amount,
-                    SalesInvoiceLine.Description, SalesInvoiceLine."Unit Price", SalesInvoiceHeader."Currency Code");
+                    SalesInvoiceLine.Description, SalesInvoiceLine."Unit Price", CurrencyCode);
             until SalesInvoiceLine.Next() = 0;
     end;
 
     local procedure AddCreditMemoLines(var ParentElement: XmlElement; SalesCrMemoHeader: Record "Sales Cr.Memo Header")
     var
         SalesCrMemoLine: Record "Sales Cr.Memo Line";
+        CurrencyCode: Code[10];
     begin
+        if SalesCrMemoHeader."Currency Code" = '' then
+            CurrencyCode := GetLCYCode()
+        else
+            CurrencyCode := SalesCrMemoHeader."Currency Code";
+
         SalesCrMemoLine.SetRange("Document No.", SalesCrMemoHeader."No.");
         SalesCrMemoLine.SetFilter(Type, '<>%1', SalesCrMemoLine.Type::" ");
         if SalesCrMemoLine.FindSet() then
             repeat
                 AddCreditNoteLine(ParentElement, SalesCrMemoLine."Line No.", SalesCrMemoLine.Quantity,
                     SalesCrMemoLine."Unit of Measure Code", SalesCrMemoLine.Amount,
-                    SalesCrMemoLine.Description, SalesCrMemoLine."Unit Price", SalesCrMemoHeader."Currency Code");
+                    SalesCrMemoLine.Description, SalesCrMemoLine."Unit Price", CurrencyCode);
             until SalesCrMemoLine.Next() = 0;
     end;
 
@@ -463,16 +542,16 @@ codeunit 70000007 "MY eInv XML Generator"
         ItemElement: XmlElement;
         PriceElement: XmlElement;
     begin
-        LineElement := XmlElement.Create('cac:InvoiceLine', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        LineElement := XmlElement.Create('InvoiceLine', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(LineElement, 'cbc:ID', Format(LineNo));
         AddQuantityElement(LineElement, 'cbc:InvoicedQuantity', Quantity, UnitOfMeasure);
         AddAmountElement(LineElement, 'cbc:LineExtensionAmount', Amount, CurrencyCode);
 
-        ItemElement := XmlElement.Create('cac:Item', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        ItemElement := XmlElement.Create('Item', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(ItemElement, 'cbc:Description', Description);
         LineElement.Add(ItemElement);
 
-        PriceElement := XmlElement.Create('cac:Price', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        PriceElement := XmlElement.Create('Price', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddAmountElement(PriceElement, 'cbc:PriceAmount', UnitPrice, CurrencyCode);
         LineElement.Add(PriceElement);
 
@@ -485,32 +564,23 @@ codeunit 70000007 "MY eInv XML Generator"
         ItemElement: XmlElement;
         PriceElement: XmlElement;
     begin
-        LineElement := XmlElement.Create('cac:CreditNoteLine', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        LineElement := XmlElement.Create('CreditNoteLine', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(LineElement, 'cbc:ID', Format(LineNo));
         AddQuantityElement(LineElement, 'cbc:CreditedQuantity', Quantity, UnitOfMeasure);
         AddAmountElement(LineElement, 'cbc:LineExtensionAmount', Amount, CurrencyCode);
 
-        ItemElement := XmlElement.Create('cac:Item', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        ItemElement := XmlElement.Create('Item', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(ItemElement, 'cbc:Description', Description);
         LineElement.Add(ItemElement);
 
-        PriceElement := XmlElement.Create('cac:Price', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+        PriceElement := XmlElement.Create('Price', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddAmountElement(PriceElement, 'cbc:PriceAmount', UnitPrice, CurrencyCode);
         LineElement.Add(PriceElement);
 
         ParentElement.Add(LineElement);
     end;
 
-    // ALL YOUR EXISTING HELPER METHODS (unchanged)
-    /* local procedure AddElement(var ParentElement: XmlElement; ElementName: Text; ElementValue: Text)
-    var
-        NewElement: XmlElement;
-    begin
-        if ElementValue <> '' then begin
-            NewElement := XmlElement.Create(ElementName, GetNamespace(ElementName), ElementValue);
-            ParentElement.Add(NewElement);
-        end;
-    end; */
+    // HELPER METHODS
     local procedure AddElement(var ParentElement: XmlElement; ElementName: Text; ElementValue: Text)
     var
         NewElement: XmlElement;
@@ -551,8 +621,22 @@ codeunit 70000007 "MY eInv XML Generator"
     var
         NewElement: XmlElement;
         CurrencyAttr: XmlAttribute;
+        Prefix: Text;
+        LocalName: Text;
+        NamespaceUri: Text;
+        ColonPos: Integer;
     begin
-        NewElement := XmlElement.Create(ElementName, GetNamespace(ElementName), Format(Amount, 0, '<Precision,2:2><Standard Format,0>'));
+        ColonPos := StrPos(ElementName, ':');
+        if ColonPos > 0 then begin
+            Prefix := CopyStr(ElementName, 1, ColonPos - 1);
+            LocalName := CopyStr(ElementName, ColonPos + 1);
+            NamespaceUri := GetNamespaceUri(Prefix);
+        end else begin
+            LocalName := ElementName;
+            NamespaceUri := GetNamespaceUri('');
+        end;
+
+        NewElement := XmlElement.Create(LocalName, NamespaceUri, Format(Amount, 0, '<Precision,2:2><Standard Format,0>'));
         CurrencyAttr := XmlAttribute.Create('currencyID', CurrencyCode);
         NewElement.Add(CurrencyAttr);
         ParentElement.Add(NewElement);
@@ -562,8 +646,22 @@ codeunit 70000007 "MY eInv XML Generator"
     var
         NewElement: XmlElement;
         UnitAttr: XmlAttribute;
+        Prefix: Text;
+        LocalName: Text;
+        NamespaceUri: Text;
+        ColonPos: Integer;
     begin
-        NewElement := XmlElement.Create(ElementName, GetNamespace(ElementName), Format(Quantity, 0, '<Precision,2:2><Standard Format,0>'));
+        ColonPos := StrPos(ElementName, ':');
+        if ColonPos > 0 then begin
+            Prefix := CopyStr(ElementName, 1, ColonPos - 1);
+            LocalName := CopyStr(ElementName, ColonPos + 1);
+            NamespaceUri := GetNamespaceUri(Prefix);
+        end else begin
+            LocalName := ElementName;
+            NamespaceUri := GetNamespaceUri('');
+        end;
+
+        NewElement := XmlElement.Create(LocalName, NamespaceUri, Format(Quantity, 0, '<Precision,2:2><Standard Format,0>'));
         UnitAttr := XmlAttribute.Create('unitCode', UnitCode);
         NewElement.Add(UnitAttr);
         ParentElement.Add(NewElement);
@@ -576,8 +674,8 @@ codeunit 70000007 "MY eInv XML Generator"
         SchemeAttr: XmlAttribute;
     begin
         if IDValue <> '' then begin
-            PartyIDElement := XmlElement.Create('cac:PartyIdentification', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-            IDElement := XmlElement.Create('cbc:ID', 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2', IDValue);
+            PartyIDElement := XmlElement.Create('PartyIdentification', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+            IDElement := XmlElement.Create('ID', 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2', IDValue);
             SchemeAttr := XmlAttribute.Create('schemeID', SchemeID);
             IDElement.Add(SchemeAttr);
             PartyIDElement.Add(IDElement);
@@ -590,7 +688,7 @@ codeunit 70000007 "MY eInv XML Generator"
         AddressLineElement: XmlElement;
     begin
         if AddressText <> '' then begin
-            AddressLineElement := XmlElement.Create('cac:AddressLine', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+            AddressLineElement := XmlElement.Create('AddressLine', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
             AddElement(AddressLineElement, 'cbc:Line', AddressText);
             PostalElement.Add(AddressLineElement);
         end;
@@ -600,17 +698,10 @@ codeunit 70000007 "MY eInv XML Generator"
     var
         CountryElement: XmlElement;
     begin
-        CountryElement := XmlElement.Create('cac:Country', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        AddElement(CountryElement, 'cbc:IdentificationCode', CountryCode);
-        PostalElement.Add(CountryElement);
-    end;
-
-    local procedure GetNamespace(ElementName: Text): Text
-    begin
-        if StrPos(ElementName, 'cbc:') > 0 then
-            exit('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2');
-        if StrPos(ElementName, 'cac:') > 0 then
-            exit('urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        exit('urn:oasis:names:specification:ubl:schema:xsd:Invoice-2');
+        if CountryCode <> '' then begin
+            CountryElement := XmlElement.Create('Country', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+            AddElement(CountryElement, 'cbc:IdentificationCode', CountryCode);
+            PostalElement.Add(CountryElement);
+        end;
     end;
 }
