@@ -134,20 +134,41 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                     end;
                 }
 
-                action(CheckStatus)
+                action(CheckMyInvoisStatus)
                 {
-                    Caption = 'Check Status from MyInvois';
                     ApplicationArea = All;
+                    Caption = 'Check MyInvois Status';
                     Image = Status;
-                    ToolTip = 'Check the current status of this e-invoice from MyInvois API.';
-                    Enabled = Rec."MY eInv Submitted";
                     Promoted = true;
                     PromotedCategory = Process;
+                    PromotedIsBig = true;
+                    ToolTip = 'Check if document has been validated and retrieve IRBM Unique ID';
+                    Enabled = Rec."MY eInv Document UUID" <> '';
 
                     trigger OnAction()
+                    var
+                        Submission: Codeunit "MY eInv Submission";
+                        StatusMsg: Text;
                     begin
-                        Rec.CheckStatusFromAPI();
-                        CurrPage.Update();
+                        if Rec."MY eInv IRBM Unique ID" <> '' then begin
+                            Message('This document is already validated.\IRBM Unique ID: %1\Validation Date: %2',
+                                    Rec."MY eInv IRBM Unique ID",
+                                    Rec."MY eInv Validation Date");
+                            exit;
+                        end;
+
+                        if Rec."MY eInv Document UUID" = '' then begin
+                            Error('This document has not been submitted to MyInvois yet.');
+                        end;
+
+                        if Submission.GetDocumentDetails(Rec) then begin
+                            CurrPage.Update(false);
+                            Message('Document validated successfully!\IRBM Unique ID: %1\You can now print the invoice.',
+                                    Rec."MY eInv IRBM Unique ID");
+                        end else begin
+                            Message('Document has been submitted but is not validated yet.\Status: %1\Please try again in a few moments.',
+                                    Rec."MY eInv Status");
+                        end;
                     end;
                 }
 

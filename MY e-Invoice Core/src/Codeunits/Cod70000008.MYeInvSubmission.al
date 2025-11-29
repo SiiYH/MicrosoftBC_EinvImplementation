@@ -38,6 +38,7 @@ codeunit 70000008 "MY eInv Submission"
         SubmissionLog: Record "MY eInv Submission Log";
         SubmissionUID: Text;
         DocumentHash: Text;
+        DocumentUUID: Text;
         ResponseText: Text;
         AccessToken: Text;
         Success: Boolean;
@@ -49,17 +50,17 @@ codeunit 70000008 "MY eInv Submission"
         if AccessToken = '' then begin
             ErrorMessage := 'Failed to obtain access token from MyInvois API.';
             StatusEnum := StatusEnum::Invalid;
-            UpdateInvoiceHeader(SalesInvoiceHeader, '', '', StatusEnum, ErrorMessage);
+            UpdateInvoiceHeader(SalesInvoiceHeader, '', '', '', StatusEnum, ErrorMessage);
             exit(false);
         end;
 
-        Success := SubmitToMyInvois(DocumentXML, Setup, AccessToken, SalesInvoiceHeader."No.", SubmissionUID, DocumentHash, ResponseText);
+        Success := SubmitToMyInvois(DocumentXML, Setup, AccessToken, SalesInvoiceHeader."No.", SubmissionUID, DocumentHash, DocumentUUID, ResponseText);
 
         CreateInvoiceSubmissionLog(SubmissionLog, SalesInvoiceHeader, SubmissionUID, DocumentHash, Success, ResponseText);
 
         if Success then begin
             StatusEnum := StatusEnum::Submitted;
-            UpdateInvoiceHeader(SalesInvoiceHeader, SubmissionUID, DocumentHash, StatusEnum, '');
+            UpdateInvoiceHeader(SalesInvoiceHeader, SubmissionUID, DocumentHash, DocumentUUID, StatusEnum, '');
             ErrorMessage := '';
         end else begin
             if ResponseText.Contains('Document rejected:') then
@@ -68,7 +69,7 @@ codeunit 70000008 "MY eInv Submission"
                 StatusEnum := StatusEnum::Invalid;
 
             ErrorMessage := ResponseText;
-            UpdateInvoiceHeader(SalesInvoiceHeader, SubmissionUID, DocumentHash, StatusEnum, ErrorMessage);
+            UpdateInvoiceHeader(SalesInvoiceHeader, SubmissionUID, DocumentHash, DocumentUUID, StatusEnum, ErrorMessage);
         end;
 
         exit(Success);
@@ -81,6 +82,7 @@ codeunit 70000008 "MY eInv Submission"
         SubmissionLog: Record "MY eInv Submission Log";
         SubmissionUID: Text;
         DocumentHash: Text;
+        DocumentUUID: Text;
         ResponseText: Text;
         AccessToken: Text;
         Success: Boolean;
@@ -99,7 +101,7 @@ codeunit 70000008 "MY eInv Submission"
         end;
 
         // Submit the document
-        Success := SubmitToMyInvois(DocumentXML, Setup, AccessToken, SalesCrMemoHeader."No.", SubmissionUID, DocumentHash, ResponseText);
+        Success := SubmitToMyInvois(DocumentXML, Setup, AccessToken, SalesCrMemoHeader."No.", SubmissionUID, DocumentHash, DocumentUUID, ResponseText);
 
         // Create submission log
         CreateCreditMemoSubmissionLog(SubmissionLog, SalesCrMemoHeader, SubmissionUID, DocumentHash, Success, ResponseText);
@@ -124,7 +126,7 @@ codeunit 70000008 "MY eInv Submission"
 
 
     // SHARED METHOD - Used by both Invoice and Credit Memo
-    local procedure SubmitToMyInvois(DocumentXML: Text; Setup: Record "MY eInv Setup"; AccessToken: Text; DocumentNo: Code[20]; var SubmissionUID: Text; var DocumentHash: Text; var ResponseText: Text): Boolean
+    local procedure SubmitToMyInvois(DocumentXML: Text; Setup: Record "MY eInv Setup"; AccessToken: Text; DocumentNo: Code[20]; var SubmissionUID: Text; var DocumentHash: Text; var DocumentUUID: Text; var ResponseText: Text): Boolean
     var
         Client: HttpClient;
         RequestMessage: HttpRequestMessage;
@@ -132,13 +134,14 @@ codeunit 70000008 "MY eInv Submission"
         RequestHeaders: HttpHeaders;
         Content: HttpContent;
         ContentHeaders: HttpHeaders;
-        JsonResponse: JsonObject;
-        JsonToken: JsonToken;
-        AcceptedArray: JsonArray;
-        RejectedArray: JsonArray;
-        JsonBody: JsonObject;
-        JsonDocuments: JsonArray;
-        JsonDocument: JsonObject;
+        JsonResponse: JsonObject;           // Response root object
+        JsonToken: JsonToken;               // Generic token for navigation
+        AcceptedArray: JsonArray;           // Array of accepted documents
+        AcceptedDoc: JsonObject;            // ← Individual accepted document object
+        RejectedArray: JsonArray;           // Array of rejected documents
+        JsonBody: JsonObject;               // Request body object
+        JsonDocuments: JsonArray;           // Request documents array
+        JsonDocument: JsonObject;           // Request document object
         RequestBody: Text;
         ApiUrl: Text;
         HttpStatusCode: Integer;
@@ -195,7 +198,15 @@ codeunit 70000008 "MY eInv Submission"
             exit(false);
         end;
 
-        // CHECK 1: Verify we have acceptedDocuments with at least one entry
+        // Get submissionUid
+        if JsonResponse.Get('submissionUid', JsonToken) and not JsonToken.AsValue().IsNull then
+            SubmissionUID := JsonToken.AsValue().AsText()  // → "P209KJNAK8CMM62E6QEK48BK10"
+        else begin
+            ResponseText := 'Response missing submissionUid.';
+            exit(false);
+        end;
+
+        // Get acceptedDocuments array
         if not JsonResponse.Get('acceptedDocuments', JsonToken) then begin
             ResponseText := 'Response missing acceptedDocuments array.';
             exit(false);
@@ -203,23 +214,27 @@ codeunit 70000008 "MY eInv Submission"
 
         AcceptedArray := JsonToken.AsArray();
         if AcceptedArray.Count = 0 then begin
-            // Document was rejected - extract rejection details
             ResponseText := ExtractRejectionErrors(JsonResponse);
             exit(false);
         end;
 
-        // CHECK 2: Verify we have a submissionUid (should exist if document accepted)
-        if not GetJsonValueAsText(JsonResponse, 'submissionUid', SubmissionUID) then begin
-            ResponseText := 'Document accepted but response missing submissionUid.';
+        // Get first accepted document
+        AcceptedArray.Get(0, JsonToken);
+        AcceptedDoc := JsonToken.AsObject();
+
+        // Extract UUID - THIS IS THE DOCUMENT UUID
+        if AcceptedDoc.Get('uuid', JsonToken) and not JsonToken.AsValue().IsNull then
+            DocumentUUID := JsonToken.AsValue().AsText()  // → "V0XNN0A9BE7JP7FW6QEK48BK10"
+        else begin
+            ResponseText := 'Document accepted but missing UUID.';
             exit(false);
         end;
 
-        // CHECK 3: Extract document hash from accepted documents
-        AcceptedArray.Get(0, JsonToken);
-        if JsonToken.AsObject().Get('documentHash', JsonToken) then
+        // Extract document hash (if provided)
+        if AcceptedDoc.Get('documentHash', JsonToken) and not JsonToken.AsValue().IsNull then
             DocumentHash := JsonToken.AsValue().AsText()
         else
-            DocumentHash := ComputeDocumentHash(DocumentXML); // Fallback to computed hash
+            DocumentHash := ComputeDocumentHash(DocumentXML);
 
         exit(true);
     end;
@@ -286,6 +301,7 @@ codeunit 70000008 "MY eInv Submission"
         ErrorDetail: Text;
         PropertyPath: Text;
         Target: Text;
+        MainErrorMessage: Text;
         i: Integer;
     begin
         ErrorMessage := 'Document rejected: ';
@@ -305,55 +321,69 @@ codeunit 70000008 "MY eInv Submission"
 
         ErrorObj := JsonToken.AsObject();
 
-        if ErrorObj.Get('message', JsonToken) then
-            ErrorMessage += JsonToken.AsValue().AsText() + ' - ';
+        // Get main error message (if exists)
+        if ErrorObj.Get('message', JsonToken) and not JsonToken.AsValue().IsNull then
+            MainErrorMessage := JsonToken.AsValue().AsText();
 
-        if ErrorObj.Get('details', JsonToken) then begin
+        // Check if there are error details
+        if ErrorObj.Get('details', JsonToken) and not JsonToken.AsValue().IsNull then begin
             DetailsArray := JsonToken.AsArray();
-            ErrorMessage += StrSubstNo('%1 validation error(s):\', DetailsArray.Count);
 
-            for i := 0 to DetailsArray.Count - 1 do begin
-                if i >= 5 then begin
-                    ErrorMessage += StrSubstNo('... and %1 more errors', DetailsArray.Count - 5);
-                    break;
+            if DetailsArray.Count > 0 then begin
+                ErrorMessage += StrSubstNo('%1 validation error(s):\', DetailsArray.Count);
+
+                for i := 0 to DetailsArray.Count - 1 do begin
+                    if i >= 5 then begin
+                        ErrorMessage += StrSubstNo('... and %1 more errors', DetailsArray.Count - 5);
+                        break;
+                    end;
+
+                    DetailsArray.Get(i, JsonToken);
+                    DetailObj := JsonToken.AsObject();
+
+                    // Reset variables
+                    ErrorCode := '';
+                    ErrorDetail := '';
+                    PropertyPath := '';
+                    Target := '';
+
+                    // Safely extract each field (handle nulls)
+                    if DetailObj.Get('code', JsonToken) and not JsonToken.AsValue().IsNull then
+                        ErrorCode := JsonToken.AsValue().AsText();
+
+                    if DetailObj.Get('message', JsonToken) and not JsonToken.AsValue().IsNull then
+                        ErrorDetail := JsonToken.AsValue().AsText();
+
+                    if DetailObj.Get('propertyPath', JsonToken) and not JsonToken.AsValue().IsNull then
+                        PropertyPath := JsonToken.AsValue().AsText();
+
+                    if DetailObj.Get('target', JsonToken) and not JsonToken.AsValue().IsNull then
+                        Target := JsonToken.AsValue().AsText();
+
+                    if i > 0 then
+                        ErrorMessage += '\';
+
+                    // Build error line (handle missing code)
+                    if ErrorCode <> '' then
+                        ErrorMessage += StrSubstNo('%1: %2', ErrorCode, ErrorDetail)
+                    else
+                        ErrorMessage += ErrorDetail; // No code, just message
+
+                    // Add target value if available
+                    if Target <> '' then
+                        ErrorMessage += StrSubstNo(' [Value: %1]', Target);
+
+                    // Add property path
+                    if PropertyPath <> '' then
+                        ErrorMessage += StrSubstNo(' (Field: %1)', PropertyPath);
                 end;
-
-                DetailsArray.Get(i, JsonToken);
-                DetailObj := JsonToken.AsObject();
-
-                ErrorCode := '';
-                ErrorDetail := '';
-                PropertyPath := '';
-                Target := '';
-
-                if DetailObj.Get('code', JsonToken) then
-                    ErrorCode := JsonToken.AsValue().AsText();
-                if DetailObj.Get('message', JsonToken) then
-                    ErrorDetail := JsonToken.AsValue().AsText();
-                if DetailObj.Get('propertyPath', JsonToken) then
-                    PropertyPath := JsonToken.AsValue().AsText();
-                if DetailObj.Get('target', JsonToken) then
-                    Target := JsonToken.AsValue().AsText();
-
-                if i > 0 then
-                    ErrorMessage += '\';
-
-                // Build error line
-                ErrorMessage += StrSubstNo('%1: %2', ErrorCode, ErrorDetail);
-
-                // Add target value if available (the actual rejected value)
-                if Target <> '' then
-                    ErrorMessage += StrSubstNo(' [Value sent: %1]', Target);
-
-                // Add property path
-                if PropertyPath <> '' then
-                    ErrorMessage += StrSubstNo(' (Field: %1)', PropertyPath);
-
-                // Special handling for CF321 (date/time errors)
-                if ErrorCode = 'CF321' then
-                    // ErrorMessage += GetDateTimeDebugInfo();
-                    Message(GetDateTimeDebugInfo());
             end;
+        end else begin
+            // No details array, use main error message
+            if MainErrorMessage <> '' then
+                ErrorMessage += MainErrorMessage
+            else
+                ErrorMessage += 'Unknown error';
         end;
 
         exit(ErrorMessage);
@@ -533,15 +563,149 @@ codeunit 70000008 "MY eInv Submission"
         SubmissionLog.Insert(true);
     end;
 
-    local procedure UpdateInvoiceHeader(var SalesInvoiceHeader: Record "Sales Invoice Header"; SubmissionUID: Text; DocumentHash: Text; Status: Enum "MY eInv Status"; ErrorMessage: Text)
+    local procedure UpdateInvoiceHeader(var SalesInvoiceHeader: Record "Sales Invoice Header"; SubmissionUID: Text; DocumentHash: Text; DocumentUUID: Text; Status: Enum "MY eInv Status"; ErrorMessage: Text)
+    var
+        Setup: Record "MY eInv Setup";
+        PortalURL: Text;
     begin
         SalesInvoiceHeader."MY eInv Submission UID" := CopyStr(SubmissionUID, 1, 50);
         SalesInvoiceHeader."MY eInv Document Hash" := CopyStr(DocumentHash, 1, 100);
+        SalesInvoiceHeader."MY eInv Document UUID" := CopyStr(DocumentUUID, 1, 50);
         SalesInvoiceHeader."MY eInv Status" := Status;
         SalesInvoiceHeader."MY eInv Error Message" := CopyStr(ErrorMessage, 1, 250);
         SalesInvoiceHeader."MY eInv Submission Date" := Today;
-        SalesInvoiceHeader.Modify(false);
+        SalesInvoiceHeader.Modify(true);
     end;
+
+    procedure GetDocumentDetails(var SalesInvoiceHeader: Record "Sales Invoice Header"): Boolean
+    var
+        Setup: Record "MY eInv Setup";
+        Authentication: Codeunit "MY eInv Authentication";
+        AccessToken: Text;
+        ResponseText: Text;
+    begin
+        if SalesInvoiceHeader."MY eInv Document UUID" = '' then
+            Error('Document has not been submitted to MyInvois yet.');
+
+        Setup.Get();
+        AccessToken := Authentication.GetValidToken(Setup);
+
+        if AccessToken = '' then
+            Error('Failed to obtain access token.');
+
+        exit(GetDocumentDetailsAPI(SalesInvoiceHeader, Setup, AccessToken, ResponseText));
+    end;
+
+    local procedure GetDocumentDetailsAPI(var SalesInvoiceHeader: Record "Sales Invoice Header"; Setup: Record "MY eInv Setup"; AccessToken: Text; var ResponseText: Text): Boolean
+    var
+        Client: HttpClient;
+        RequestMessage: HttpRequestMessage;
+        ResponseMessage: HttpResponseMessage;
+        RequestHeaders: HttpHeaders;
+        JsonResponse: JsonObject;
+        JsonToken: JsonToken;
+        DocumentDetails: JsonObject;
+        ApiUrl: Text;
+        DocumentStatus: Text;
+        LongId: Text;
+        IRBMUniqueId: Text;
+        ValidationDateTime: DateTime;
+        ValidationURL: Text;
+    begin
+        ApiUrl := Setup."API Base URL" + '/api/v1.0/documents/' + SalesInvoiceHeader."MY eInv Document UUID" + '/details';
+
+        RequestMessage.Method := 'GET';
+        RequestMessage.SetRequestUri(ApiUrl);
+
+        RequestMessage.GetHeaders(RequestHeaders);
+        RequestHeaders.Add('Authorization', 'Bearer ' + AccessToken);
+        RequestHeaders.Add('Accept', 'application/json');
+        RequestHeaders.Add('Accept-Language', 'en');
+
+        if not Client.Send(RequestMessage, ResponseMessage) then begin
+            ResponseText := 'Failed to connect to MyInvois API.';
+            exit(false);
+        end;
+
+        ResponseMessage.Content.ReadAs(ResponseText);
+
+        if not ResponseMessage.IsSuccessStatusCode then begin
+            ResponseText := GetHttpErrorMessage(ResponseMessage.HttpStatusCode, ResponseText);
+            exit(false);
+        end;
+
+        if not JsonResponse.ReadFrom(ResponseText) then begin
+            ResponseText := 'Invalid JSON response.';
+            exit(false);
+        end;
+
+        // Extract status
+        if JsonResponse.Get('status', JsonToken) then
+            DocumentStatus := JsonToken.AsValue().AsText();
+
+        // Only proceed if document is validated
+        if DocumentStatus <> 'Valid' then begin
+            ResponseText := StrSubstNo('Document status: %1 (not yet validated)', DocumentStatus);
+            exit(false);
+        end;
+
+        // Extract long ID
+        if JsonResponse.Get('longId', JsonToken) then
+            LongId := JsonToken.AsValue().AsText();
+
+        // Extract validation date/time
+        if JsonResponse.Get('validationDateTime', JsonToken) then
+            ValidationDateTime := EvaluateDateTime(JsonToken.AsValue().AsText());
+
+        // Extract IRBM Unique ID from document details
+        if JsonResponse.Get('documentDetails', JsonToken) then begin
+            DocumentDetails := JsonToken.AsObject();
+            if DocumentDetails.Get('irbmUniqueId', JsonToken) then
+                IRBMUniqueId := JsonToken.AsValue().AsText();
+        end;
+
+        // Build validation URL
+        ValidationURL := BuildValidationURL(Setup, SalesInvoiceHeader."MY eInv Document UUID", LongId);
+
+        // Update invoice header with validation data
+        UpdateInvoiceWithValidationData(SalesInvoiceHeader, IRBMUniqueId, LongId, ValidationDateTime, ValidationURL);
+
+        ResponseText := StrSubstNo('Document validated successfully.\IRBM Unique ID: %1\Validation Date: %2', IRBMUniqueId, ValidationDateTime);
+        exit(true);
+    end;
+
+    local procedure BuildValidationURL(Setup: Record "MY eInv Setup"; DocumentUUID: Text; LongId: Text): Text
+    var
+        BaseURL: Text;
+    begin
+        // MyInvois validation URL pattern (adjust based on actual portal structure)
+        BaseURL := Setup."Portal Base URL";
+
+        // Format: {baseURL}/{uuid}/share/{longId}
+        exit(StrSubstNo('%1/%2/share/%3', BaseURL, DocumentUUID, LongId));
+    end;
+
+    local procedure UpdateInvoiceWithValidationData(var SalesInvoiceHeader: Record "Sales Invoice Header"; IRBMUniqueId: Text; LongId: Text; ValidationDateTime: DateTime; ValidationURL: Text)
+    begin
+        if SalesInvoiceHeader.Get(SalesInvoiceHeader."No.") then begin
+            SalesInvoiceHeader."MY eInv IRBM Unique ID" := CopyStr(IRBMUniqueId, 1, 50);
+            SalesInvoiceHeader."MY eInv Long ID" := CopyStr(LongId, 1, 100);
+            SalesInvoiceHeader."MY eInv Validation Date" := ValidationDateTime;
+            SalesInvoiceHeader."MY eInv Validation URL" := CopyStr(ValidationURL, 1, 250);
+            SalesInvoiceHeader."MY eInv Status" := SalesInvoiceHeader."MY eInv Status"::Valid;
+            SalesInvoiceHeader.Modify(true);
+        end;
+    end;
+
+    local procedure EvaluateDateTime(DateTimeText: Text): DateTime
+    var
+        ResultDateTime: DateTime;
+    begin
+        if Evaluate(ResultDateTime, DateTimeText, 9) then // XML format
+            exit(ResultDateTime);
+        exit(0DT);
+    end;
+
 
     // CREDIT MEMO-SPECIFIC METHODS
     local procedure CreateCreditMemoSubmissionLog(var SubmissionLog: Record "MY eInv Submission Log"; SalesCrMemoHeader: Record "Sales Cr.Memo Header"; SubmissionUID: Text; DocumentHash: Text; Success: Boolean; ResponseText: Text)

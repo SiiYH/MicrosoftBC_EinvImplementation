@@ -48,6 +48,11 @@ page 70000050 "MY eInv Setup Card"
                         CurrPage.Update(true);
                     end;
                 }
+                field("Portal Base URL"; Rec."Portal Base URL")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'MyInvois portal base URL for viewing submitted documents';
+                }
 
                 field("API Base URL"; Rec."API Base URL")
                 {

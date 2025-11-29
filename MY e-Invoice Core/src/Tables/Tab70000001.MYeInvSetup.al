@@ -49,6 +49,11 @@ table 70000001 "MY eInv Setup"
             DataClassification = CustomerContent;
             Editable = false;
         }
+        field(32; "Portal Base URL"; Text[250])
+        {
+            Caption = 'Portal Base URL';
+            DataClassification = CustomerContent;
+        }
 
         // Authenticated TIN (Retrieved from Token)
         field(40; "Authenticated TIN"; Text[20])
@@ -220,11 +225,13 @@ table 70000001 "MY eInv Setup"
         case Environment of
             Environment::Sandbox:
                 begin
+                    "Portal Base URL" := 'https://preprod.myinvois.hasil.gov.my	';
                     "API Base URL" := 'https://preprod-api.myinvois.hasil.gov.my';
                     "Identity Service URL" := 'https://preprod-api.myinvois.hasil.gov.my/connect/token';
                 end;
             Environment::Production:
                 begin
+                    "Portal Base URL" := 'https://myinvois.hasil.gov.my';
                     "API Base URL" := 'https://api.myinvois.hasil.gov.my';
                     "Identity Service URL" := 'https://api.myinvois.hasil.gov.my/connect/token';
                 end;

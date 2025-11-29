@@ -69,31 +69,27 @@ codeunit 70000013 "MY eInv XML Generator 02"
 
     local procedure BuildInvoiceStructure(var RootElement: XmlElement; SalesInvoiceHeader: Record "Sales Invoice Header")
     var
-        TypeHelper: Codeunit "Type Helper";
         UTCDateTime: DateTime;
         UTCDate: Date;
         UTCTime: Time;
         IssueDateText: Text;
         IssueTimeText: Text;
+        UTC_OFFSET_MS: Integer;
+
     begin
-        /* // Get CURRENT UTC date/time
-        UTCDateTime := GetUTCDateTime();
+        // Get CURRENT UTC date/time
+        // UTC+8 offset in milliseconds
+        UTC_OFFSET_MS := 8 * 60 * 60 * 1000; // 28,800,000 ms
+
+        // Convert server time to UTC
+        UTCDateTime := CurrentDateTime - UTC_OFFSET_MS;
+
         UTCDate := DT2Date(UTCDateTime);
         UTCTime := DT2Time(UTCDateTime);
 
-        // CRITICAL: MyInvois requires CURRENT date in UTC
-        // Do NOT use posting date for IssueDate/IssueTime
-        IssueDateText := Format(UTCDate, 0, '<Year4>-<Month,2>-<Day,2>');
-        IssueTimeText := Format(UTCTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>') + 'Z'; */
-        // Get CURRENT UTC date/time using Type Helper
-        UTCDateTime := TypeHelper.GetCurrUTCDateTime();
-        UTCDate := DT2Date(UTCDateTime);
-        UTCTime := DT2Time(UTCDateTime);
-
-        // Format according to MyInvois requirements
+        // Format
         IssueDateText := Format(UTCDate, 0, '<Year4>-<Month,2>-<Day,2>');
         IssueTimeText := Format(UTCTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>') + 'Z';
-
 
         // Basic invoice information
         AddElement(RootElement, 'cbc:ID', SalesInvoiceHeader."No.");
@@ -256,6 +252,8 @@ codeunit 70000013 "MY eInv XML Generator 02"
         ContactElement: XmlElement;
         StateCode: Text;
         TINNo: Text;
+        ICNo: Text;
+        PassportNo: Text;
         BRNNo: Text;
         SSTNo: Text;
     begin
@@ -267,7 +265,14 @@ codeunit 70000013 "MY eInv XML Generator 02"
 
         // Get TIN, BRN, SST
         TINNo := GetTINNumber(CompanyInfo);
-        BRNNo := GetBRNNumber(CompanyInfo);
+        ICNo := GetICNumber(CompanyInfo);
+        IF CompanyInfo."MY eInv Entity Type" = Enum::"MY eInv Entity Type"::"Malaysian Business" then
+            BRNNo := GetBRNNumber(CompanyInfo)
+        else if CompanyInfo."MY eInv Entity Type" = Enum::"MY eInv Entity Type"::"Malaysian Individual" then
+            ICNo := GetICNumber(CompanyInfo)
+        else if CompanyInfo."MY eInv Entity Type" = Enum::"MY eInv Entity Type"::"Non-Malaysian Individual" then
+            PassportNo := GetPassportNumber(CompanyInfo);
+
         SSTNo := GetSSTNumber(CompanyInfo); // You need to implement this
 
         // Party Identifications
@@ -275,6 +280,10 @@ codeunit 70000013 "MY eInv XML Generator 02"
             AddPartyIdentification(PartyElement, TINNo, 'TIN');
         if BRNNo <> '' then
             AddPartyIdentification(PartyElement, BRNNo, 'BRN');
+        if ICNo <> '' then
+            AddPartyIdentification(PartyElement, ICNo, 'NRIC');
+        if PassportNo <> '' then
+            AddPartyIdentification(PartyElement, PassportNo, 'PASSPORT');
         if SSTNo <> '' then
             AddPartyIdentification(PartyElement, SSTNo, 'SST');
 
@@ -938,10 +947,27 @@ codeunit 70000013 "MY eInv XML Generator 02"
 
     local procedure GetTINNumber(CompanyInfo: Record "Company Information"): Text
     begin
-        // TIN (Tax Identification Number) - separate from VAT
-        // You need to add a custom field "TIN No." to Customer table
+        // TIN (Tax Identification Number)
         if CompanyInfo."MY eInv Tin" <> '' then
             exit(CompanyInfo."MY eInv Tin")
+        else
+            exit('');
+    end;
+
+    local procedure GetICNumber(CompanyInfo: Record "Company Information"): Text
+    begin
+        // TIN (Tax Identification Number) - separate from VAT
+        if CompanyInfo."MY eInv NRIC" <> '' then
+            exit(CompanyInfo."MY eInv NRIC")
+        else
+            exit('');
+    end;
+
+    local procedure GetPassportNumber(CompanyInfo: Record "Company Information"): Text
+    begin
+        // TIN (Tax Identification Number) - separate from VAT
+        if CompanyInfo."MY eInv Passport No." <> '' then
+            exit(CompanyInfo."MY eInv Passport No.")
         else
             exit('');
     end;

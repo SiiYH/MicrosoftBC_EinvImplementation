@@ -54,12 +54,12 @@ tableextension 70000001 "MY eInv Sales Inv Header" extends "Sales Invoice Header
             DataClassification = CustomerContent;
             Editable = false;
         }
-
-        field(70000007; "MY eInv Long ID"; Text[100])
+        field(70000007; "MY eInv Document UUID"; Text[100])
         {
-            Caption = 'MY eInv Long ID';
+            Caption = 'Document UUID';
             DataClassification = CustomerContent;
             Editable = false;
+            ToolTip = 'Internal MyInvois document identifier (UUID) used in API calls';
         }
 
         field(70000008; "MY eInv Validation URL"; Text[250])
@@ -91,6 +91,29 @@ tableextension 70000001 "MY eInv Sales Inv Header" extends "Sales Invoice Header
         }
         field(70000012; "MY eInv Error Message"; Text[250])
         {
+            DataClassification = CustomerContent;
+            Editable = false;
+        }
+
+        // === After Validation (Retrieved Later) ===
+
+        field(70000013; "MY eInv IRBM Unique ID"; Code[50])
+        {
+            Caption = 'IRBM Unique ID';
+            DataClassification = CustomerContent;
+            Editable = false;
+            ToolTip = 'Official IRBM e-Invoice number - MUST be printed on invoice';
+        }
+        field(70000014; "MY eInv Long ID"; Text[100])
+        {
+            Caption = 'MY eInv Long ID';
+            DataClassification = CustomerContent;
+            Editable = false;
+        }
+
+        field(70000015; "MY eInv Validation Date"; DateTime)
+        {
+            Caption = 'Validation Date/Time';
             DataClassification = CustomerContent;
             Editable = false;
         }
