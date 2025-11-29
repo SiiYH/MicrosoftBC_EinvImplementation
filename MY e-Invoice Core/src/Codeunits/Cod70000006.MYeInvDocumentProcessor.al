@@ -26,18 +26,16 @@ codeunit 70000006 "MY eInv Document Processor"
     local procedure ProcessDocument(Document: Interface "MY eInv Document")
     var
         Setup: Record "MY eInv Setup";
-        XMLGenerator: Codeunit "MY eInv XML Generator";
+        XMLGenerator: Codeunit "MY eInv XML Generator 02";
         DigitalSignature: Codeunit "MY eInv Digital Signature";
         Submission: Codeunit "MY eInv Submission";
         DocumentXML: Text;
         SignedXML: Text;
         SubmissionResult: Boolean;
         RecordVariant: Variant;
+        ErrorMessage: Text;
     begin
-        // Get setup
         Setup.Get();
-
-        // Get the actual record
         Document.GetDocumentRecord(RecordVariant);
 
         // Step 1: Generate UBL XML
@@ -46,14 +44,14 @@ codeunit 70000006 "MY eInv Document Processor"
         // Step 2: Sign if version 1.1
         if Setup."Document Version" = Setup."Document Version"::"1.1" then begin
             SignedXML := DigitalSignature.SignDocument(DocumentXML, Setup);
-            SubmissionResult := Submission.SubmitDocument(SignedXML, RecordVariant, Document.GetDocumentType());
+            SubmissionResult := Submission.SubmitDocument(SignedXML, RecordVariant, Document.GetDocumentType(), ErrorMessage);
         end else begin
-            SubmissionResult := Submission.SubmitDocument(DocumentXML, RecordVariant, Document.GetDocumentType());
+            SubmissionResult := Submission.SubmitDocument(DocumentXML, RecordVariant, Document.GetDocumentType(), ErrorMessage);
         end;
 
-        if SubmissionResult then
-            Message('%1 %2 submitted successfully to MyInvois.', Document.GetDocumentType(), Document.GetDocumentNo())
-        else
-            Error('Failed to submit %1 %2.', Document.GetDocumentType(), Document.GetDocumentNo());
+        // if SubmissionResult then
+        //     Message('%1 %2 submitted successfully to MyInvois.', Document.GetDocumentType(), Document.GetDocumentNo())
+        // else
+        //     Error('Failed to submit %1 %2:\%3', Document.GetDocumentType(), Document.GetDocumentNo(), ErrorMessage);
     end;
 }

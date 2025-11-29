@@ -90,6 +90,7 @@ page 70000003 "MY eInv Submission Log List"
                 field("Response Text"; Rec."Response Text")
                 {
                     ToolTip = 'Specifies the value of the Response Text field.', Comment = '%';
+                    MultiLine = true;
                 }
                 field("Retry Count"; Rec."Retry Count")
                 {

@@ -89,6 +89,11 @@ tableextension 70000004 "MY eInv Sales Cr Memo Header" extends "Sales Cr.Memo He
             DataClassification = CustomerContent;
             Editable = false;
         }
+        field(70000012; "MY eInv Error Message"; Text[250])
+        {
+            DataClassification = SystemMetadata;
+            Editable = false;
+        }
     }
 
     // ═════════════════════════════════════════════════════════════════
@@ -106,7 +111,7 @@ tableextension 70000004 "MY eInv Sales Cr Memo Header" extends "Sales Cr.Memo He
     var
         SubmissionLog: Record "MY eInv Submission Log";
     begin
-        SubmissionLog.SetFilter("Document Type", '%1,%2', '01', '03');
+        SubmissionLog.SetFilter("Document Type", '%1|%2', '01', '03');
         SubmissionLog.SetRange("Document No.", "No.");
         Page.Run(Page::"MY eInv Submission Log List", SubmissionLog);
     end;

@@ -402,6 +402,7 @@ table 70000002 "MY eInv Submission Log"
         PurchCrMemoHdr: Record "Purch. Cr. Memo Hdr.";
         Submission: Codeunit "MY eInv Submission";
         XMLText: Text;
+        ErrorMsg: Text;
     begin
         XMLText := GetSignedXML();
         if XMLText = '' then
@@ -415,7 +416,8 @@ table 70000002 "MY eInv Submission Log"
             if not SalesInvoiceHeader.Get("Document No.") then
                 Error('Sales Invoice %1 not found.', "Document No.");
 
-            Submission.SubmitInvoice(XMLText, SalesInvoiceHeader);
+            ErrorMsg := '';
+            Submission.SubmitInvoice(XMLText, SalesInvoiceHeader, ErrorMsg);
         end
         // Sales Credit Memo: 02 (Credit Note), 04 (Refund Note)
         else if "Document Type" in ['02', '04'] then begin

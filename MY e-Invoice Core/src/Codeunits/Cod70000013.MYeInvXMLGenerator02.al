@@ -68,11 +68,40 @@ codeunit 70000013 "MY eInv XML Generator 02"
     end;
 
     local procedure BuildInvoiceStructure(var RootElement: XmlElement; SalesInvoiceHeader: Record "Sales Invoice Header")
+    var
+        TypeHelper: Codeunit "Type Helper";
+        UTCDateTime: DateTime;
+        UTCDate: Date;
+        UTCTime: Time;
+        IssueDateText: Text;
+        IssueTimeText: Text;
     begin
+        /* // Get CURRENT UTC date/time
+        UTCDateTime := GetUTCDateTime();
+        UTCDate := DT2Date(UTCDateTime);
+        UTCTime := DT2Time(UTCDateTime);
+
+        // CRITICAL: MyInvois requires CURRENT date in UTC
+        // Do NOT use posting date for IssueDate/IssueTime
+        IssueDateText := Format(UTCDate, 0, '<Year4>-<Month,2>-<Day,2>');
+        IssueTimeText := Format(UTCTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>') + 'Z'; */
+        // Get CURRENT UTC date/time using Type Helper
+        UTCDateTime := TypeHelper.GetCurrUTCDateTime();
+        UTCDate := DT2Date(UTCDateTime);
+        UTCTime := DT2Time(UTCDateTime);
+
+        // Format according to MyInvois requirements
+        IssueDateText := Format(UTCDate, 0, '<Year4>-<Month,2>-<Day,2>');
+        IssueTimeText := Format(UTCTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>') + 'Z';
+
+
         // Basic invoice information
         AddElement(RootElement, 'cbc:ID', SalesInvoiceHeader."No.");
-        AddElement(RootElement, 'cbc:IssueDate', Format(SalesInvoiceHeader."Posting Date", 0, '<Year4>-<Month,2>-<Day,2>'));
-        AddElement(RootElement, 'cbc:IssueTime', Format(Time, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>Z'));
+        // AddElement(RootElement, 'cbc:IssueDate', Format(SalesInvoiceHeader."Posting Date", 0, '<Year4>-<Month,2>-<Day,2>'));
+        /* AddElement(RootElement, 'cbc:IssueDate', Format(Today, 0, '<Year4>-<Month,2>-<Day,2>'));
+        AddElement(RootElement, 'cbc:IssueTime', Format(Time, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>Z')); */
+        AddElement(RootElement, 'cbc:IssueDate', IssueDateText);
+        AddElement(RootElement, 'cbc:IssueTime', IssueTimeText);
 
         // Invoice type code with version attribute
         AddElementWithAttribute(RootElement, 'cbc:InvoiceTypeCode', '01', 'listVersionID', '1.0');
@@ -106,6 +135,23 @@ codeunit 70000013 "MY eInv XML Generator 02"
 
         // Invoice lines
         AddInvoiceLines(RootElement, SalesInvoiceHeader);
+    end;
+
+    local procedure GetUTCDateTime(): DateTime
+    var
+        TypeHelper: Codeunit "Type Helper";
+        LocalDateTime: DateTime;
+        UTCDateTime: DateTime;
+    begin
+        LocalDateTime := CurrentDateTime;
+
+        // If TypeHelper.GetUTCDateTime is available
+        UTCDateTime := TypeHelper.GetCurrUTCDateTime();
+
+        // Fallback: If your server IS already UTC (check Windows timezone)
+        // UTCDateTime := LocalDateTime;
+
+        exit(UTCDateTime);
     end;
 
     local procedure BuildCreditMemoStructure(var RootElement: XmlElement; SalesCrMemoHeader: Record "Sales Cr.Memo Header")
@@ -209,20 +255,32 @@ codeunit 70000013 "MY eInv XML Generator 02"
         LegalElement: XmlElement;
         ContactElement: XmlElement;
         StateCode: Text;
+        TINNo: Text;
+        BRNNo: Text;
+        SSTNo: Text;
     begin
         SupplierElement := XmlElement.Create('AccountingSupplierParty', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         PartyElement := XmlElement.Create('Party', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
 
-        // Industry classification
+        // Industry Classification Code
         AddElementWithAttribute(PartyElement, 'cbc:IndustryClassificationCode', '00000', 'name', 'NOT APPLICABLE');
 
-        // Party identifications
-        AddPartyIdentification(PartyElement, GetTINNumber(CompanyInfo), 'TIN');
-        AddPartyIdentification(PartyElement, CompanyInfo."Registration No.", 'BRN');
-        AddPartyIdentification(PartyElement, GetSSTNumber(CompanyInfo), 'SST');
+        // Get TIN, BRN, SST
+        TINNo := GetTINNumber(CompanyInfo);
+        BRNNo := GetBRNNumber(CompanyInfo);
+        SSTNo := GetSSTNumber(CompanyInfo); // You need to implement this
 
-        // Postal address
+        // Party Identifications
+        if TINNo <> '' then
+            AddPartyIdentification(PartyElement, TINNo, 'TIN');
+        if BRNNo <> '' then
+            AddPartyIdentification(PartyElement, BRNNo, 'BRN');
+        if SSTNo <> '' then
+            AddPartyIdentification(PartyElement, SSTNo, 'SST');
+
+        // Postal Address
         PostalElement := XmlElement.Create('PostalAddress', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+
         if CompanyInfo.City <> '' then
             AddElement(PostalElement, 'cbc:CityName', CompanyInfo.City);
         if CompanyInfo."Post Code" <> '' then
@@ -237,15 +295,17 @@ codeunit 70000013 "MY eInv XML Generator 02"
         AddCountry(PostalElement, CompanyInfo."Country/Region Code");
         PartyElement.Add(PostalElement);
 
-        // Legal entity
+        // Party Legal Entity
         LegalElement := XmlElement.Create('PartyLegalEntity', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(LegalElement, 'cbc:RegistrationName', CompanyInfo.Name);
         PartyElement.Add(LegalElement);
 
-        // Contact information
+        // Contact
         ContactElement := XmlElement.Create('Contact', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        AddElement(ContactElement, 'cbc:Telephone', CompanyInfo."Phone No.");
-        AddElement(ContactElement, 'cbc:ElectronicMail', CompanyInfo."E-Mail");
+        if CompanyInfo."Phone No." <> '' then
+            AddElement(ContactElement, 'cbc:Telephone', CompanyInfo."Phone No.");
+        if CompanyInfo."E-Mail" <> '' then
+            AddElement(ContactElement, 'cbc:ElectronicMail', CompanyInfo."E-Mail");
         PartyElement.Add(ContactElement);
 
         SupplierElement.Add(PartyElement);
@@ -257,9 +317,16 @@ codeunit 70000013 "MY eInv XML Generator 02"
         Customer: Record Customer;
     begin
         Customer.Get(SalesInvoiceHeader."Bill-to Customer No.");
-        AddCustomerParty(ParentElement, Customer, SalesInvoiceHeader."Bill-to Address",
-            SalesInvoiceHeader."Bill-to Address 2", SalesInvoiceHeader."Bill-to Country/Region Code",
-            SalesInvoiceHeader."Bill-to Name");
+        AddCustomerParty(ParentElement,
+        Customer."VAT Registration No.",
+        Customer.City,
+        Customer."Post Code",
+        Customer.County,
+        SalesInvoiceHeader."Bill-to Address",
+        SalesInvoiceHeader."Bill-to Address 2",
+        SalesInvoiceHeader."Bill-to Country/Region Code",
+        SalesInvoiceHeader."Bill-to Name",
+        SalesInvoiceHeader."Bill-to Customer No."); // Pass Customer No.
     end;
 
     local procedure AddCustomerPartyFromCreditMemo(var ParentElement: XmlElement; SalesCrMemoHeader: Record "Sales Cr.Memo Header")
@@ -267,48 +334,87 @@ codeunit 70000013 "MY eInv XML Generator 02"
         Customer: Record Customer;
     begin
         Customer.Get(SalesCrMemoHeader."Bill-to Customer No.");
-        AddCustomerParty(ParentElement, Customer, SalesCrMemoHeader."Bill-to Address",
-            SalesCrMemoHeader."Bill-to Address 2", SalesCrMemoHeader."Bill-to Country/Region Code",
-            SalesCrMemoHeader."Bill-to Name");
+        AddCustomerParty(ParentElement,
+        Customer."VAT Registration No.",
+        Customer.City,
+        Customer."Post Code",
+        Customer.County,
+        SalesCrMemoHeader."Bill-to Address",
+        SalesCrMemoHeader."Bill-to Address 2",
+        SalesCrMemoHeader."Bill-to Country/Region Code",
+        SalesCrMemoHeader."Bill-to Name",
+        SalesCrMemoHeader."Bill-to Customer No."); // Pass Customer No.
     end;
 
-    local procedure AddCustomerParty(var ParentElement: XmlElement; Customer: Record Customer; Address: Text[100]; Address2: Text[50]; CountryCode: Code[10]; Name: Text[100])
+    local procedure AddCustomerParty(var ParentElement: XmlElement; VATRegNo: Text[20]; City: Text[30]; PostCode: Code[20]; County: Text[30]; Address: Text[100]; Address2: Text[50]; CountryCode: Code[10]; Name: Text[100]; CustomerNo: Code[20])
     var
+        Customer: Record Customer;
+        PostCodeRec: Record "Post Code";
         CustomerElement: XmlElement;
         PartyElement: XmlElement;
         PostalElement: XmlElement;
         LegalElement: XmlElement;
         ContactElement: XmlElement;
         StateCode: Text;
+        TINNo: Text;
+        BRNNo: Text;
+        SSTNo: Text;
     begin
+        if Customer.Get(CustomerNo) then begin
+            TINNo := GetTINNumber(Customer);
+            BRNNo := GetBRNNumber(Customer);
+            SSTNo := GetSSTNumber(Customer);
+        end;
+
         CustomerElement := XmlElement.Create('AccountingCustomerParty', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         PartyElement := XmlElement.Create('Party', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
 
-        // Party identifications
-        AddPartyIdentification(PartyElement, GetTINNumber(Customer), 'TIN');
-        AddPartyIdentification(PartyElement, GetBRNNumber(Customer), 'BRN');
-        AddPartyIdentification(PartyElement, GetSSTNumber(Customer), 'SST');
+        // Party Identifications - Only add if they exist
+        if TINNo <> '' then
+            AddPartyIdentification(PartyElement, TINNo, 'TIN');
+        if BRNNo <> '' then
+            AddPartyIdentification(PartyElement, BRNNo, 'BRN');
+        if SSTNo <> '' then
+            AddPartyIdentification(PartyElement, SSTNo, 'SST')
+        else
+            AddPartyIdentification(PartyElement, 'NA', 'SST'); // Add NA if no SST
 
-        // Postal address
+        // Postal Address
         PostalElement := XmlElement.Create('PostalAddress', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        if Customer.City <> '' then
-            AddElement(PostalElement, 'cbc:CityName', Customer.City);
-        if Customer."Post Code" <> '' then
-            AddElement(PostalElement, 'cbc:PostalZone', Customer."Post Code");
+
+        if City <> '' then
+            AddElement(PostalElement, 'cbc:CityName', City);
+        if PostCode <> '' then
+            AddElement(PostalElement, 'cbc:PostalZone', PostCode);
+
+        // Don't add state code for non-Malaysian addresses
+        if CountryCode = 'MY' then begin
+            StateCode := PostCodeRec.GetStateCodeFromPostCode(PostCode);
+            if StateCode <> '' then
+                AddElement(PostalElement, 'cbc:CountrySubentityCode', StateCode);
+        end
+        else
+            AddElement(PostalElement, 'cbc:CountrySubentityCode', Customer."MY eInv State Code");
+
 
         AddAddressLine(PostalElement, Address);
+        AddAddressLine(PostalElement, Address2);
         AddCountry(PostalElement, CountryCode);
         PartyElement.Add(PostalElement);
 
-        // Legal entity
+        // Party Legal Entity
         LegalElement := XmlElement.Create('PartyLegalEntity', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(LegalElement, 'cbc:RegistrationName', Name);
         PartyElement.Add(LegalElement);
 
-        // Contact information
+        // Contact
         ContactElement := XmlElement.Create('Contact', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        AddElement(ContactElement, 'cbc:Telephone', Customer."Phone No.");
-        AddElement(ContactElement, 'cbc:ElectronicMail', Customer."E-Mail");
+        if Customer.Get(CustomerNo) then begin
+            if Customer."Phone No." <> '' then
+                AddElement(ContactElement, 'cbc:Telephone', Customer."Phone No.");
+            if Customer."E-Mail" <> '' then
+                AddElement(ContactElement, 'cbc:ElectronicMail', Customer."E-Mail");
+        end;
         PartyElement.Add(ContactElement);
 
         CustomerElement.Add(PartyElement);
@@ -434,8 +540,8 @@ codeunit 70000013 "MY eInv XML Generator 02"
         ExchangeRateElement: XmlElement;
     begin
         ExchangeRateElement := XmlElement.Create('TaxExchangeRate', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        AddElement(ExchangeRateElement, 'cbc:SourceCurrencyCode', 'GBP');
-        AddElement(ExchangeRateElement, 'cbc:TargetCurrencyCode', GetCurrencyCode(SalesInvoiceHeader."Currency Code"));
+        AddElement(ExchangeRateElement, 'cbc:SourceCurrencyCode', GetCurrencyCode(SalesInvoiceHeader."Currency Code"));
+        AddElement(ExchangeRateElement, 'cbc:TargetCurrencyCode', 'MYR');
         AddElement(ExchangeRateElement, 'cbc:CalculationRate', '0.000000');
         ParentElement.Add(ExchangeRateElement);
     end;
@@ -445,8 +551,8 @@ codeunit 70000013 "MY eInv XML Generator 02"
         ExchangeRateElement: XmlElement;
     begin
         ExchangeRateElement := XmlElement.Create('TaxExchangeRate', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        AddElement(ExchangeRateElement, 'cbc:SourceCurrencyCode', 'GBP');
-        AddElement(ExchangeRateElement, 'cbc:TargetCurrencyCode', GetCurrencyCode(SalesCrMemoHeader."Currency Code"));
+        AddElement(ExchangeRateElement, 'cbc:SourceCurrencyCode', GetCurrencyCode(SalesCrMemoHeader."Currency Code"));
+        AddElement(ExchangeRateElement, 'cbc:TargetCurrencyCode', 'MYR');
         AddElement(ExchangeRateElement, 'cbc:CalculationRate', '0.000000');
         ParentElement.Add(ExchangeRateElement);
     end;
@@ -840,6 +946,15 @@ codeunit 70000013 "MY eInv XML Generator 02"
             exit('');
     end;
 
+    local procedure GetBRNNumber(CompanyInfo: Record "Company Information"): Text[20]
+    begin
+        // BRN (Business Register Number)
+        if CompanyInfo."MY eInv BRN" <> '' then
+            exit(CompanyInfo."MY eInv BRN")
+        else
+            exit('');
+    end;
+
     local procedure GetSSTNumber(CompanyInfo: Record "Company Information"): Text[20]
     begin
         // SST (Sales Service Tax)
@@ -933,12 +1048,34 @@ codeunit 70000013 "MY eInv XML Generator 02"
     local procedure AddCountry(var PostalElement: XmlElement; CountryCode: Code[10])
     var
         CountryElement: XmlElement;
+        LHDNCountryCode: Text;
     begin
         if CountryCode <> '' then begin
-            CountryElement := XmlElement.Create('Country', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-            AddElementWithTwoAttributes(CountryElement, 'cbc:IdentificationCode', CountryCode, 'listID', 'ISO3166-1', 'listAgencyID', '6');
-            PostalElement.Add(CountryElement);
+            LHDNCountryCode := MapToLHDNCountryCode(CountryCode);
+            if LHDNCountryCode <> '' then begin
+                CountryElement := XmlElement.Create('Country', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
+                AddElementWithTwoAttributes(CountryElement, 'cbc:IdentificationCode', LHDNCountryCode, 'listID', 'ISO3166-1', 'listAgencyID', '6');
+                PostalElement.Add(CountryElement);
+            end;
         end;
+    end;
+
+    local procedure MapToLHDNCountryCode(BCCountryCode: Code[10]): Text[3]
+    var
+        CountryRegion: Record "Country/Region";
+    begin
+        if CountryRegion.Get(BCCountryCode) then begin
+            // First try custom field
+            if CountryRegion."MY eInv ISO Code" <> '' then
+                exit(CountryRegion."MY eInv ISO Code");
+
+            // Fallback to standard ISO Code
+            if CountryRegion."ISO Code" <> '' then
+                exit(CountryRegion."ISO Code");
+        end;
+
+        // Last resort: return as-is
+        exit(BCCountryCode);
     end;
 
     /* local procedure AddCountry(var PostalElement: XmlElement; CountryCode: Code[10])

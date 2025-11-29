@@ -28,7 +28,7 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                 {
                     ApplicationArea = All;
                     ToolTip = 'Indicates if this invoice has been submitted to MyInvois.';
-                    StyleExpr = SubmittedStyleExpr;
+                    // StyleExpr = SubmittedStyleExpr;
                 }
 
                 field("MY eInv Status"; Rec."MY eInv Status")
@@ -49,7 +49,11 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                             Hyperlink(Rec."MY eInv Validation URL");
                     end;
                 }
-
+                field("MY eInv Long ID"; Rec."MY eInv Long ID")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'Specifies the value of the MY eInv Long ID field.', Comment = '%';
+                }
                 field("MY eInv Submission Date"; Rec."MY eInv Submission Date")
                 {
                     ApplicationArea = All;
@@ -78,6 +82,22 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                     Editable = false;
                     StyleExpr = 'Subordinate';
                 }
+                field("MY eInv QR Code"; Rec."MY eInv QR Code")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'Specifies the value of the MY eInv QR Code field.', Comment = '%';
+                }
+                field("MY eInv Cancelled"; Rec."MY eInv Cancelled")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'Specifies the value of the MY eInv Cancelled field.', Comment = '%';
+                }
+                field("MY eInv Error Message"; Rec."MY eInv Error Message")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'Specifies the value of the MY eInv Error Message field.', Comment = '%';
+                    MultiLine = true;
+                }
             }
         }
     }
@@ -97,7 +117,7 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                     ApplicationArea = All;
                     Image = SendTo;
                     ToolTip = 'Submit this invoice to MyInvois system in XML format (UBL 2.1).';
-                    Enabled = not Rec."MY eInv Submitted";
+                    // Enabled = not Rec."MY eInv Submitted";
                     Promoted = true;
                     PromotedCategory = Process;
                     PromotedIsBig = true;
@@ -205,7 +225,7 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                 {
                     Caption = 'Download QR Code';
                     ApplicationArea = All;
-                    Image = QRCode;
+                    Image = BarCode;
                     ToolTip = 'Download the QR code for this e-invoice (for sharing with buyer).';
                     Enabled = Rec."MY eInv Submitted";
 

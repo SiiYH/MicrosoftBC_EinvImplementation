@@ -89,7 +89,12 @@ tableextension 70000003 "MY eInv Sales Header" extends "Sales Header"
             DataClassification = CustomerContent;
             Editable = false;
         }
-        field(70000012; "MY eInv Submit On Post"; Boolean)
+        field(70000012; "MY eInv Error Message"; Text[250])
+        {
+            DataClassification = CustomerContent;
+            Editable = false;
+        }
+        field(70000013; "MY eInv Submit On Post"; Boolean)
         {
             Caption = 'Submit to MyInvois on Post';
             DataClassification = CustomerContent;
@@ -104,7 +109,7 @@ tableextension 70000003 "MY eInv Sales Header" extends "Sales Header"
     var
         SubmissionLog: Record "MY eInv Submission Log";
     begin
-        SubmissionLog.SetFilter("Document Type", '%1,%2', '01', '03');
+        SubmissionLog.SetFilter("Document Type", '%1|%2', '01', '03');
         SubmissionLog.SetRange("Document No.", "No.");
         Page.Run(Page::"MY eInv Submission Log List", SubmissionLog);
     end;
