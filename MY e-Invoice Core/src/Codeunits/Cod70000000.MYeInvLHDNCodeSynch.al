@@ -342,5 +342,73 @@ codeunit 70000000 "MY eInv LHDN Code Synch"
     end;
 
 
+    procedure InitializeAllCountries()
+    var
+        CountryRegion: Record "Country/Region";
+    begin
+        if CountryRegion.FindSet(true) then
+            repeat
+                InitializeCountryISOCode(CountryRegion);
+            until CountryRegion.Next() = 0;
+    end;
 
+    local procedure InitializeCountryISOCode(var CountryRegion: Record "Country/Region")
+    var
+        ISOCode: Code[3];
+    begin
+        // Skip if already populated
+        if CountryRegion."MY eInv ISO Code" <> '' then
+            exit;
+
+        // Try to use existing ISO Code first
+        if CountryRegion."ISO Code" <> '' then begin
+            if ValidateISOCodeExists(CountryRegion."ISO Code") then begin
+                CountryRegion."MY eInv ISO Code" := CountryRegion."ISO Code";
+                CountryRegion.Modify(true);
+                exit;
+            end;
+        end;
+
+        // Try to find by country name
+        ISOCode := FindISOCodeByName(CountryRegion.Name);
+        if ISOCode <> '' then begin
+            CountryRegion."MY eInv ISO Code" := ISOCode;
+            CountryRegion.Modify(true);
+        end;
+    end;
+
+    local procedure ValidateISOCodeExists(ISOCode: Code[3]): Boolean
+    var
+        MYeInvCodeTable: Record "MY eInv LHDN Code"; // Replace with your actual table name
+    begin
+        MYeInvCodeTable.SetRange("Code Type", Enum::"MY eInv LHDN Code Type"::Country);
+        MYeInvCodeTable.SetRange(Code, ISOCode);
+        MYeInvCodeTable.SetRange(Active, true);
+        exit(MYeInvCodeTable.FindFirst());
+    end;
+
+    local procedure FindISOCodeByName(CountryName: Text[50]): Code[3]
+    var
+        MYeInvCodeTable: Record "MY eInv LHDN Code"; // Replace with your actual table name
+    begin
+        MYeInvCodeTable.SetRange("Code Type", Enum::"MY eInv LHDN Code Type"::Country);
+        MYeInvCodeTable.SetRange(Active, true);
+
+        // Try exact match first
+        MYeInvCodeTable.SetFilter(Description, '@' + CountryName);
+        if MYeInvCodeTable.FindFirst() then
+            exit(MYeInvCodeTable.Code);
+
+        // Try partial match
+        MYeInvCodeTable.SetFilter(Description, '@*' + CountryName + '*');
+        if MYeInvCodeTable.FindFirst() then
+            exit(MYeInvCodeTable.Code);
+
+        exit('');
+    end;
+
+    procedure InitializeSingleCountry(var CountryRegion: Record "Country/Region")
+    begin
+        InitializeCountryISOCode(CountryRegion);
+    end;
 }

@@ -175,7 +175,7 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                     trigger OnAction()
                     var
                         SalesInvoiceHeader: Record "Sales Invoice Header";
-                        XMLGenerator: Codeunit "MY eInv XML Generator";
+                        XMLGenerator: Codeunit "MY eInv XML Generator 02";
                         TempBlob: Codeunit "Temp Blob";
                         InStr: InStream;
                         OutStr: OutStream;
