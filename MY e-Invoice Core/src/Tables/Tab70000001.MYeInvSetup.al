@@ -225,7 +225,7 @@ table 70000001 "MY eInv Setup"
         case Environment of
             Environment::Sandbox:
                 begin
-                    "Portal Base URL" := 'https://preprod.myinvois.hasil.gov.my	';
+                    "Portal Base URL" := 'https://preprod.myinvois.hasil.gov.my';
                     "API Base URL" := 'https://preprod-api.myinvois.hasil.gov.my';
                     "Identity Service URL" := 'https://preprod-api.myinvois.hasil.gov.my/connect/token';
                 end;

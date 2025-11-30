@@ -55,6 +55,11 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                         ApplicationArea = All;
                         ToolTip = 'Specifies the value of the Document UUID field.', Comment = '%';
                     }
+                    field("MY eInv Submission Date"; Rec."MY eInv Submission Date")
+                    {
+                        ApplicationArea = All;
+                        ToolTip = 'Date when the invoice was submitted to MyInvois.';
+                    }
                 }
                 group(Validated)
                 {
@@ -75,15 +80,6 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                         ToolTip = 'Specifies the value of the Validation Date/Time field.', Comment = '%';
                     }
                 }
-
-
-
-                field("MY eInv Submission Date"; Rec."MY eInv Submission Date")
-                {
-                    ApplicationArea = All;
-                    ToolTip = 'Date when the invoice was submitted to MyInvois.';
-                }
-
                 field("MY eInv Document Hash"; Rec."MY eInv Document Hash")
                 {
                     ApplicationArea = All;
@@ -105,11 +101,6 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                     ToolTip = 'E-Invoice was submitted in XML (UBL 2.1) format.';
                     Editable = false;
                     StyleExpr = 'Subordinate';
-                }
-                field("MY eInv QR Code"; Rec."MY eInv QR Code")
-                {
-                    ApplicationArea = All;
-                    ToolTip = 'Specifies the value of the MY eInv QR Code field.', Comment = '%';
                 }
                 field("MY eInv Cancelled"; Rec."MY eInv Cancelled")
                 {
@@ -143,7 +134,7 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                     PromotedCategory = Process;
                     PromotedIsBig = true;
                     ToolTip = 'Edit eInvoice classification codes and LHDN UOM for posted invoice lines';
-                    Enabled = not (Rec."MY eInv Status" = Enum::"MY eInv Status"::Submitted) or not (Rec."MY eInv Status" = Enum::"MY eInv Status"::Valid); // Only allow edit if not yet submitted
+                    Enabled = not ((Rec."MY eInv Status" = Enum::"MY eInv Status"::Submitted) or (Rec."MY eInv Status" = Enum::"MY eInv Status"::Valid)); // Only allow edit if not yet submitted
 
                     trigger OnAction()
                     var
@@ -162,6 +153,7 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                     Image = SendTo;
                     ToolTip = 'Submit this invoice to MyInvois system in XML format (UBL 2.1).';
                     // Enabled = not Rec."MY eInv Submitted";
+                    Enabled = not ((Rec."MY eInv Status" = Enum::"MY eInv Status"::Submitted) or (Rec."MY eInv Status" = Enum::"MY eInv Status"::Valid)); // Only allow edit if not yet submitted
                     Promoted = true;
                     PromotedCategory = Process;
                     PromotedIsBig = true;
@@ -308,20 +300,6 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                     end;
                 }
 
-                action(DownloadQRCode)
-                {
-                    Caption = 'Download QR Code';
-                    ApplicationArea = All;
-                    Image = BarCode;
-                    ToolTip = 'Download the QR code for this e-invoice (for sharing with buyer).';
-                    Enabled = Rec."MY eInv Submitted";
-
-                    trigger OnAction()
-                    begin
-                        DownloadQRCode();
-                    end;
-                }
-
                 action(ViewOnMyInvoisPortal)
                 {
                     Caption = 'View on MyInvois Portal';
@@ -410,4 +388,5 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
         SubmittedStyleExpr: Text;
         StatusStyleExpr: Text;
         EInvoiceFormatInfo: Text;
+        QRCodeText: Text;
 }
