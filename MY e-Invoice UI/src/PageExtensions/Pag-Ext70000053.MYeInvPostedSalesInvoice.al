@@ -350,10 +350,9 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
 
     local procedure UpdateEInvoiceInfo()
     var
-        CompanyInfo: Record "Company Information";
+        MYeInvFeaMgmt: Codeunit "MY eInv Feature Management";
     begin
-        CompanyInfo.Get();
-        ShowEInvoiceStatus := CompanyInfo."MY eInv Enabled";
+        ShowEInvoiceStatus := MYeInvFeaMgmt.IsEInvoiceEnabled();
         EInvoiceFormatInfo := 'XML (UBL 2.1)';
     end;
 

@@ -8,6 +8,7 @@ pageextension 70000058 "MY eInv Country/Region Card" extends "Countries/Regions"
             {
                 ApplicationArea = All;
                 ToolTip = 'Specifies the value of the MY eInv ISO Code field.', Comment = '%';
+                Visible = eInvEnabled;
             }
         }
     }
@@ -17,6 +18,7 @@ pageextension 70000058 "MY eInv Country/Region Card" extends "Countries/Regions"
         {
             group("MY eInvoice")
             {
+                Visible = eInvEnabled;
                 action(MapToLHDNCountryCode)
                 {
                     Caption = 'Map To LHDN Country Code';
@@ -65,4 +67,13 @@ pageextension 70000058 "MY eInv Country/Region Card" extends "Countries/Regions"
         // Return empty if no match found
         exit('');
     end;
+
+    trigger OnAfterGetRecord()
+    begin
+        eInvEnabled := MYeInvFeaMgmt.IsEInvoiceEnabled();
+    end;
+
+    var
+        MYeInvFeaMgmt: Codeunit "MY eInv Feature Management";
+        eInvEnabled: Boolean;
 }

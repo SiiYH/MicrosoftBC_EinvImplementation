@@ -154,10 +154,10 @@ pageextension 70000052 "MY eInv Sales Invoice" extends "Sales Invoice"
     local procedure UpdateEInvoiceInfo()
     var
         Setup: Record "MY eInv Setup";
-        CompanyInfo: Record "Company Information";
+        MYeInvFeaMgmt: Codeunit "MY eInv Feature Management";
+
     begin
-        CompanyInfo.Get();
-        ShowEInvoiceGroup := CompanyInfo."MY eInv Enabled";
+        ShowEInvoiceGroup := MYeInvFeaMgmt.IsEInvoiceEnabled();
 
         if Setup.Get() then begin
             EInvoiceFormat := 'XML (UBL 2.1)';

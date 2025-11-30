@@ -287,16 +287,14 @@ pageextension 70000056 "MY eInv Customer Card" extends "Customer Card"
 
     trigger OnAfterGetCurrRecord()
     begin
+        eInvEnabled := MYeInvFeaMgmt.IsEInvoiceEnabled();
         UpdateFieldVisibility();
         SetStyles();
     end;
 
     trigger OnOpenPage()
-    var
-        CompanyInfo: Record "Company Information";
     begin
-        CompanyInfo.Get();
-        ShowEInvoiceGroup := CompanyInfo."MY eInv Enabled";
+        ShowEInvoiceGroup := eInvEnabled;
 
         UpdateFieldVisibility();
         SetStyles();
@@ -335,7 +333,10 @@ pageextension 70000056 "MY eInv Customer Card" extends "Customer Card"
             TINStyleExpr := 'Unfavorable';
     end;
 
+
     var
+        MYeInvFeaMgmt: Codeunit "MY eInv Feature Management";
+        eInvEnabled: Boolean;
         ShowEInvoiceGroup: Boolean;
         ShowBusinessFields: Boolean;
         ShowIndividualFields: Boolean;

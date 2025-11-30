@@ -42,7 +42,7 @@ pageextension 70000057 "MY eInv Customer List" extends "Customer List"
             {
                 Caption = 'Validate E-Invoice Setup';
                 ApplicationArea = All;
-                Image = Validate;
+                Image = ValidateEmailLoggingSetup;
                 ToolTip = 'Validate that selected customers are configured for e-invoicing.';
 
                 trigger OnAction()
