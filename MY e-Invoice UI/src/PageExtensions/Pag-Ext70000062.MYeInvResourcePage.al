@@ -1,4 +1,4 @@
-pageextension 70000060 "MY eInv Item Charges Page" extends "Item Charges"
+pageextension 70000062 "MY eInv Resource Page" extends "Resource Card"
 {
     layout
     {

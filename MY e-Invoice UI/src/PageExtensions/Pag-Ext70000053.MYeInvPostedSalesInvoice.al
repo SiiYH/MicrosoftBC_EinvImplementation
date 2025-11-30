@@ -134,6 +134,26 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
             {
                 Caption = 'E-Invoice';
                 Image = ElectronicDoc;
+                action(EditEInvoiceInfo)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Edit eInvoice Information';
+                    Image = Edit;
+                    Promoted = true;
+                    PromotedCategory = Process;
+                    PromotedIsBig = true;
+                    ToolTip = 'Edit eInvoice classification codes and LHDN UOM for posted invoice lines';
+                    Enabled = not (Rec."MY eInv Status" = Enum::"MY eInv Status"::Submitted) or not (Rec."MY eInv Status" = Enum::"MY eInv Status"::Valid); // Only allow edit if not yet submitted
+
+                    trigger OnAction()
+                    var
+                        EInvoiceEdit: Page "MY eInv Posted Invoice Edit";
+                    begin
+                        EInvoiceEdit.SetRecord(Rec);
+                        EInvoiceEdit.RunModal();
+                        CurrPage.Update(false);
+                    end;
+                }
 
                 action(SubmitToMyInvois)
                 {

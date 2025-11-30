@@ -77,12 +77,12 @@ tableextension 70000009 "MY eInv Sales Line" extends "Sales Line"
 
             Rec.Type::"Charge (Item)":
                 if ItemCharge.Get(Rec."No.") then begin
-                    Rec."MY eInv Classification Code" := ItemCharge."MY eInv Classification Code";
+                    Rec."MY eInv Classification Code" := Item."MY eInv Sales Classification"; // Use sales classification
                 end;
 
             Rec.Type::Resource:
                 if Resource.Get(Rec."No.") then begin
-                    Rec."MY eInv Classification Code" := Resource."MY eInv Classification Code";
+                    Rec."MY eInv Classification Code" := Item."MY eInv Sales Classification"; // Use sales classification
                 end;
         end;
     end;

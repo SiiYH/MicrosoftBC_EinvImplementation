@@ -10,6 +10,11 @@ tableextension 70000006 "MY eInv Country/Region" extends "Country/Region"
         }
     }
 
+    keys
+    {
+        key(eInvCountryRegion; "MY eInv ISO Code") { }
+    }
+
     trigger OnInsert()
     var
         InitializeISOCodes: Codeunit "MY eInv LHDN Code Synch";

@@ -294,8 +294,8 @@ pageextension 70000056 "MY eInv Customer Card" extends "Customer Card"
 
     trigger OnOpenPage()
     begin
+        eInvEnabled := MYeInvFeaMgmt.IsEInvoiceEnabled();
         ShowEInvoiceGroup := eInvEnabled;
-
         UpdateFieldVisibility();
         SetStyles();
     end;

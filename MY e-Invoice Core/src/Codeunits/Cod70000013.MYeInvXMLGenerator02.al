@@ -67,6 +67,15 @@ codeunit 70000013 "MY eInv XML Generator 02"
         exit(Result);
     end;
 
+    procedure GetUTCOffsetDateTime(VAR IssueDate: Text; VAR IssueTime: Text)
+    var
+        lDateTimeTxt: Text;
+    begin
+        lDateTimeTxt := FORMAT(CURRENTDATETIME, 0, 9);
+        IssueDate := COPYSTR(lDateTimeTxt, 1, 10);
+        IssueTime := COPYSTR(lDateTimeTxt, 12, 8) + 'Z';
+    end;
+
     local procedure BuildInvoiceStructure(var RootElement: XmlElement; SalesInvoiceHeader: Record "Sales Invoice Header")
     var
         UTCDateTime: DateTime;
@@ -77,19 +86,7 @@ codeunit 70000013 "MY eInv XML Generator 02"
         UTC_OFFSET_MS: Integer;
 
     begin
-        // Get CURRENT UTC date/time
-        // UTC+8 offset in milliseconds
-        UTC_OFFSET_MS := 8 * 60 * 60 * 1000; // 28,800,000 ms
-
-        // Convert server time to UTC
-        UTCDateTime := CurrentDateTime - UTC_OFFSET_MS;
-
-        UTCDate := DT2Date(UTCDateTime);
-        UTCTime := DT2Time(UTCDateTime);
-
-        // Format
-        IssueDateText := Format(UTCDate, 0, '<Year4>-<Month,2>-<Day,2>');
-        IssueTimeText := Format(UTCTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>') + 'Z';
+        GetUTCOffsetDateTime(IssueDateText, IssueTimeText);
 
         // Basic invoice information
         AddElement(RootElement, 'cbc:ID', SalesInvoiceHeader."No.");
@@ -547,11 +544,12 @@ codeunit 70000013 "MY eInv XML Generator 02"
     local procedure AddTaxExchangeRate(var ParentElement: XmlElement; SalesInvoiceHeader: Record "Sales Invoice Header")
     var
         ExchangeRateElement: XmlElement;
+        Curr: Record "Currency Exchange Rate";
     begin
         ExchangeRateElement := XmlElement.Create('TaxExchangeRate', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(ExchangeRateElement, 'cbc:SourceCurrencyCode', GetCurrencyCode(SalesInvoiceHeader."Currency Code"));
         AddElement(ExchangeRateElement, 'cbc:TargetCurrencyCode', 'MYR');
-        AddElement(ExchangeRateElement, 'cbc:CalculationRate', '0.000000');
+        AddElement(ExchangeRateElement, 'cbc:CalculationRate', Format(Round(Curr.ExchangeRate(SalesInvoiceHeader."Posting Date", 'MYR'), 6)));
         ParentElement.Add(ExchangeRateElement);
     end;
 
@@ -569,6 +567,7 @@ codeunit 70000013 "MY eInv XML Generator 02"
     local procedure AddTaxTotalFromInvoice(var ParentElement: XmlElement; SalesInvoiceHeader: Record "Sales Invoice Header")
     var
         SalesInvoiceLine: Record "Sales Invoice Line";
+        CurrEcxhRate: Record "Currency Exchange Rate";
         TotalTaxAmount: Decimal;
         TaxableAmount: Decimal;
         CurrencyCode: Code[10];
@@ -581,6 +580,13 @@ codeunit 70000013 "MY eInv XML Generator 02"
             until SalesInvoiceLine.Next() = 0;
 
         CurrencyCode := GetCurrencyCode(SalesInvoiceHeader."Currency Code");
+        // CurrencyCode := GetLHDNTaxCode();
+        //if the current company is foreign company
+        if (SalesInvoiceHeader."Currency Code" = '') and (GetLCYCode() <> 'MYR') then begin
+            CurrEcxhRate.ExchangeAmtLCYToFCY(SalesInvoiceHeader."Posting Date", 'MYR', TotalTaxAmount, Round(CurrEcxhRate.ExchangeRate(SalesInvoiceHeader."Posting Date", 'MYR'), 6));
+            // CurrEcxhRate.ExchangeAmtLCYToFCY(SalesInvoiceHeader."Posting Date", 'MYR', TaxableAmount, Round(CurrEcxhRate.ExchangeRate(SalesInvoiceHeader."Posting Date", 'MYR'), 6));
+        end;
+
         AddTaxTotal(ParentElement, TotalTaxAmount, TaxableAmount, CurrencyCode);
     end;
 
@@ -610,11 +616,11 @@ codeunit 70000013 "MY eInv XML Generator 02"
         TaxSchemeElement: XmlElement;
     begin
         TaxTotalElement := XmlElement.Create('TaxTotal', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        AddAmountElement(TaxTotalElement, 'cbc:TaxAmount', TotalTaxAmount, CurrencyCode);
+        AddAmountElement(TaxTotalElement, 'cbc:TaxAmount', TotalTaxAmount, GetLHDNTaxCode());
 
         TaxSubtotalElement := XmlElement.Create('TaxSubtotal', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddAmountElement(TaxSubtotalElement, 'cbc:TaxableAmount', TaxableAmount, CurrencyCode);
-        AddAmountElement(TaxSubtotalElement, 'cbc:TaxAmount', TotalTaxAmount, CurrencyCode);
+        AddAmountElement(TaxSubtotalElement, 'cbc:TaxAmount', TotalTaxAmount, GetLHDNTaxCode());
 
         TaxCategoryElement := XmlElement.Create('TaxCategory', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(TaxCategoryElement, 'cbc:ID', '06');
@@ -745,6 +751,8 @@ codeunit 70000013 "MY eInv XML Generator 02"
 
     local procedure AddInvoiceLine(var ParentElement: XmlElement; SalesInvoiceLine: Record "Sales Invoice Line"; CurrencyCode: Code[10])
     var
+        SalesInvoiceHeader: Record "Sales Invoice Header";
+        CurrEcxhRate: Record "Currency Exchange Rate";
         LineElement: XmlElement;
         AllowanceChargeElement: XmlElement;
         TaxTotalElement: XmlElement;
@@ -765,7 +773,7 @@ codeunit 70000013 "MY eInv XML Generator 02"
         AddElement(LineElement, 'cbc:ID', Format(SalesInvoiceLine."Line No."));
 
         // Invoiced Quantity
-        AddQuantityElement(LineElement, 'cbc:InvoicedQuantity', SalesInvoiceLine.Quantity, SalesInvoiceLine."Unit of Measure Code");
+        AddQuantityElement(LineElement, 'cbc:InvoicedQuantity', SalesInvoiceLine.Quantity, SalesInvoiceLine."MY eInv LHDN UOM");
 
         // Line Extension Amount
         AddAmountElement(LineElement, 'cbc:LineExtensionAmount', SalesInvoiceLine.Amount, CurrencyCode);
@@ -790,13 +798,18 @@ codeunit 70000013 "MY eInv XML Generator 02"
 
         // Tax Total for Line
         TaxAmount := SalesInvoiceLine."Amount Including VAT" - SalesInvoiceLine.Amount;
+        if SalesInvoiceHeader.Get(SalesInvoiceLine."Document No.") then
+            if (SalesInvoiceHeader."Currency Code" = '') and (GetLCYCode() <> GetLHDNTaxCode()) then begin
+                CurrEcxhRate.ExchangeAmtLCYToFCY(SalesInvoiceHeader."Posting Date", GetLHDNTaxCode(), TaxAmount, Round(CurrEcxhRate.ExchangeRate(SalesInvoiceHeader."Posting Date", GetLHDNTaxCode()), 6));
+                // CurrEcxhRate.ExchangeAmtLCYToFCY(SalesInvoiceHeader."Posting Date", 'MYR', TaxableAmount, Round(CurrEcxhRate.ExchangeRate(SalesInvoiceHeader."Posting Date", 'MYR'), 6));
+            end;
 
         TaxTotalElement := XmlElement.Create('TaxTotal', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        AddAmountElement(TaxTotalElement, 'cbc:TaxAmount', TaxAmount, CurrencyCode);
+        AddAmountElement(TaxTotalElement, 'cbc:TaxAmount', TaxAmount, GetLHDNTaxCode());
 
         TaxSubtotalElement := XmlElement.Create('TaxSubtotal', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddAmountElement(TaxSubtotalElement, 'cbc:TaxableAmount', SalesInvoiceLine.Amount, CurrencyCode);
-        AddAmountElement(TaxSubtotalElement, 'cbc:TaxAmount', TaxAmount, CurrencyCode);
+        AddAmountElement(TaxSubtotalElement, 'cbc:TaxAmount', TaxAmount, GetLHDNTaxCode());
 
         TaxCategoryElement := XmlElement.Create('TaxCategory', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
         AddElement(TaxCategoryElement, 'cbc:ID', '06'); // Tax category code

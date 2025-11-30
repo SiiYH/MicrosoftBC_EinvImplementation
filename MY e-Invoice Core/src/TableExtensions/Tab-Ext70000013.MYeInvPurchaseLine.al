@@ -77,12 +77,12 @@ tableextension 70000013 "MY eInv Purchase Line" extends "Purchase Line"
 
             Rec.Type::"Charge (Item)":
                 if ItemCharge.Get(Rec."No.") then begin
-                    Rec."MY eInv Classification Code" := ItemCharge."MY eInv Classification Code";
+                    Rec."MY eInv Classification Code" := Item."MY eInv Purch. Classification"; // Use purchase classification
                 end;
 
             Rec.Type::Resource:
                 if Resource.Get(Rec."No.") then begin
-                    Rec."MY eInv Classification Code" := Resource."MY eInv Classification Code";
+                    Rec."MY eInv Classification Code" := Item."MY eInv Purch. Classification"; // Use purchase classification
                 end;
         end;
     end;
