@@ -5,6 +5,12 @@ codeunit 70000008 "MY eInv Submission"
     var
         AccessToken: Text;
         TokenExpiry: DateTime;
+        LastErrorMessage: Text;
+
+    procedure GetLastErrorMessage(): Text
+    begin
+        exit(LastErrorMessage);
+    end;
 
     procedure SubmitDocument(DocumentXML: Text; RecordVariant: Variant; DocumentType: Text; var ErrorMessage: Text): Boolean
     var
@@ -134,14 +140,14 @@ codeunit 70000008 "MY eInv Submission"
         RequestHeaders: HttpHeaders;
         Content: HttpContent;
         ContentHeaders: HttpHeaders;
-        JsonResponse: JsonObject;           // Response root object
-        JsonToken: JsonToken;               // Generic token for navigation
-        AcceptedArray: JsonArray;           // Array of accepted documents
-        AcceptedDoc: JsonObject;            // ← Individual accepted document object
-        RejectedArray: JsonArray;           // Array of rejected documents
-        JsonBody: JsonObject;               // Request body object
-        JsonDocuments: JsonArray;           // Request documents array
-        JsonDocument: JsonObject;           // Request document object
+        JsonResponse: JsonObject;
+        JsonToken: JsonToken;
+        AcceptedArray: JsonArray;
+        AcceptedDoc: JsonObject;
+        RejectedArray: JsonArray;
+        JsonBody: JsonObject;
+        JsonDocuments: JsonArray;
+        JsonDocument: JsonObject;
         RequestBody: Text;
         ApiUrl: Text;
         HttpStatusCode: Integer;
@@ -198,45 +204,134 @@ codeunit 70000008 "MY eInv Submission"
             exit(false);
         end;
 
-        // Get submissionUid
+        // Check submissionUid - it can be null if validation failed
         if JsonResponse.Get('submissionUid', JsonToken) and not JsonToken.AsValue().IsNull then
-            SubmissionUID := JsonToken.AsValue().AsText()  // → "P209KJNAK8CMM62E6QEK48BK10"
-        else begin
-            ResponseText := 'Response missing submissionUid.';
-            exit(false);
-        end;
+            SubmissionUID := JsonToken.AsValue().AsText()
+        else
+            SubmissionUID := ''; // Clear it if null
 
         // Get acceptedDocuments array
-        if not JsonResponse.Get('acceptedDocuments', JsonToken) then begin
-            ResponseText := 'Response missing acceptedDocuments array.';
-            exit(false);
+        if JsonResponse.Get('acceptedDocuments', JsonToken) then begin
+            AcceptedArray := JsonToken.AsArray();
+
+            if AcceptedArray.Count > 0 then begin
+                // Document was accepted - extract UUID and hash
+                AcceptedArray.Get(0, JsonToken);
+                AcceptedDoc := JsonToken.AsObject();
+
+                // Extract UUID
+                if AcceptedDoc.Get('uuid', JsonToken) and not JsonToken.AsValue().IsNull then
+                    DocumentUUID := JsonToken.AsValue().AsText()
+                else begin
+                    ResponseText := 'Document accepted but missing UUID.';
+                    exit(false);
+                end;
+
+                // Extract document hash (if provided)
+                if AcceptedDoc.Get('documentHash', JsonToken) and not JsonToken.AsValue().IsNull then
+                    DocumentHash := JsonToken.AsValue().AsText()
+                else
+                    DocumentHash := ComputeDocumentHash(DocumentXML);
+
+                exit(true);
+            end;
         end;
 
-        AcceptedArray := JsonToken.AsArray();
-        if AcceptedArray.Count = 0 then begin
-            ResponseText := ExtractRejectionErrors(JsonResponse);
-            exit(false);
+        // If we get here, document was rejected - extract detailed error messages
+        ResponseText := ExtractRejectionErrors(JsonResponse);
+        exit(false);
+    end;
+
+    local procedure ExtractRejectionErrors(JsonResponse: JsonObject): Text
+    var
+        JsonToken: JsonToken;
+        RejectedArray: JsonArray;
+        RejectedDoc: JsonObject;
+        ErrorObj: JsonObject;
+        DetailsArray: JsonArray;
+        DetailObj: JsonObject;
+        ErrorMessage: Text;
+        ErrorCode: Text;
+        Target: Text;
+        PropertyPath: Text;
+        DetailCode: Text;
+        DetailMessage: Text;
+        DetailTarget: Text;
+        DetailPropertyPath: Text;
+        i: Integer;
+    begin
+        ErrorMessage := 'Document submission failed:';
+
+        // Get rejectedDocuments array
+        if not JsonResponse.Get('rejectedDocuments', JsonToken) then
+            exit(ErrorMessage + ' No rejection details available.');
+
+        RejectedArray := JsonToken.AsArray();
+        if RejectedArray.Count = 0 then
+            exit(ErrorMessage + ' No rejection details available.');
+
+        // Process first rejected document (you can loop through all if needed)
+        RejectedArray.Get(0, JsonToken);
+        RejectedDoc := JsonToken.AsObject();
+
+        // Get error object
+        if RejectedDoc.Get('error', JsonToken) then begin
+            ErrorObj := JsonToken.AsObject();
+
+            // Get main error info
+            if ErrorObj.Get('code', JsonToken) and not JsonToken.AsValue().IsNull then
+                ErrorCode := JsonToken.AsValue().AsText();
+
+            if ErrorObj.Get('message', JsonToken) and not JsonToken.AsValue().IsNull then
+                ErrorMessage += ' ' + JsonToken.AsValue().AsText();
+
+            if ErrorObj.Get('target', JsonToken) and not JsonToken.AsValue().IsNull then begin
+                Target := JsonToken.AsValue().AsText();
+                ErrorMessage += ' (Document: ' + Target + ')';
+            end;
+
+            // Get detailed errors
+            if ErrorObj.Get('details', JsonToken) then begin
+                DetailsArray := JsonToken.AsArray();
+
+                if DetailsArray.Count > 0 then
+                    ErrorMessage += '\Details:';
+
+                for i := 0 to DetailsArray.Count - 1 do begin
+                    DetailsArray.Get(i, JsonToken);
+                    DetailObj := JsonToken.AsObject();
+
+                    // Extract detail fields
+                    DetailCode := '';
+                    DetailMessage := '';
+                    DetailTarget := '';
+                    DetailPropertyPath := '';
+
+                    if DetailObj.Get('code', JsonToken) and not JsonToken.AsValue().IsNull then
+                        DetailCode := JsonToken.AsValue().AsText();
+
+                    if DetailObj.Get('message', JsonToken) and not JsonToken.AsValue().IsNull then
+                        DetailMessage := JsonToken.AsValue().AsText();
+
+                    if DetailObj.Get('target', JsonToken) and not JsonToken.AsValue().IsNull then
+                        DetailTarget := JsonToken.AsValue().AsText();
+
+                    if DetailObj.Get('propertyPath', JsonToken) and not JsonToken.AsValue().IsNull then
+                        DetailPropertyPath := JsonToken.AsValue().AsText();
+
+                    // Build detailed error line
+                    ErrorMessage += '\- [' + DetailCode + '] ' + DetailMessage;
+
+                    if DetailPropertyPath <> '' then
+                        ErrorMessage += ' (Path: ' + DetailPropertyPath + ')';
+
+                    if DetailTarget <> '' then
+                        ErrorMessage += ' (Field: ' + DetailTarget + ')';
+                end;
+            end;
         end;
 
-        // Get first accepted document
-        AcceptedArray.Get(0, JsonToken);
-        AcceptedDoc := JsonToken.AsObject();
-
-        // Extract UUID - THIS IS THE DOCUMENT UUID
-        if AcceptedDoc.Get('uuid', JsonToken) and not JsonToken.AsValue().IsNull then
-            DocumentUUID := JsonToken.AsValue().AsText()  // → "V0XNN0A9BE7JP7FW6QEK48BK10"
-        else begin
-            ResponseText := 'Document accepted but missing UUID.';
-            exit(false);
-        end;
-
-        // Extract document hash (if provided)
-        if AcceptedDoc.Get('documentHash', JsonToken) and not JsonToken.AsValue().IsNull then
-            DocumentHash := JsonToken.AsValue().AsText()
-        else
-            DocumentHash := ComputeDocumentHash(DocumentXML);
-
-        exit(true);
+        exit(ErrorMessage);
     end;
 
     //enhanced error messages
@@ -283,107 +378,6 @@ codeunit 70000008 "MY eInv Submission"
                 ErrorMessage := 'Gateway Timeout (504): MyInvois API did not respond in time. Please try again.';
             else
                 ErrorMessage := StrSubstNo('HTTP Error (%1): %2', HttpStatusCode, RawResponse);
-        end;
-
-        exit(ErrorMessage);
-    end;
-
-    local procedure ExtractRejectionErrors(JsonResponse: JsonObject): Text
-    var
-        JsonToken: JsonToken;
-        RejectedArray: JsonArray;
-        RejectedDoc: JsonObject;
-        ErrorObj: JsonObject;
-        DetailsArray: JsonArray;
-        DetailObj: JsonObject;
-        ErrorMessage: Text;
-        ErrorCode: Text;
-        ErrorDetail: Text;
-        PropertyPath: Text;
-        Target: Text;
-        MainErrorMessage: Text;
-        i: Integer;
-    begin
-        ErrorMessage := 'Document rejected: ';
-
-        if not JsonResponse.Get('rejectedDocuments', JsonToken) then
-            exit(ErrorMessage + 'Unknown rejection reason');
-
-        RejectedArray := JsonToken.AsArray();
-        if RejectedArray.Count = 0 then
-            exit(ErrorMessage + 'No rejection details provided');
-
-        RejectedArray.Get(0, JsonToken);
-        RejectedDoc := JsonToken.AsObject();
-
-        if not RejectedDoc.Get('error', JsonToken) then
-            exit(ErrorMessage + 'No error details provided');
-
-        ErrorObj := JsonToken.AsObject();
-
-        // Get main error message (if exists)
-        if ErrorObj.Get('message', JsonToken) and not JsonToken.AsValue().IsNull then
-            MainErrorMessage := JsonToken.AsValue().AsText();
-
-        // Check if there are error details
-        if ErrorObj.Get('details', JsonToken) and not JsonToken.AsValue().IsNull then begin
-            DetailsArray := JsonToken.AsArray();
-
-            if DetailsArray.Count > 0 then begin
-                ErrorMessage += StrSubstNo('%1 validation error(s):\', DetailsArray.Count);
-
-                for i := 0 to DetailsArray.Count - 1 do begin
-                    if i >= 5 then begin
-                        ErrorMessage += StrSubstNo('... and %1 more errors', DetailsArray.Count - 5);
-                        break;
-                    end;
-
-                    DetailsArray.Get(i, JsonToken);
-                    DetailObj := JsonToken.AsObject();
-
-                    // Reset variables
-                    ErrorCode := '';
-                    ErrorDetail := '';
-                    PropertyPath := '';
-                    Target := '';
-
-                    // Safely extract each field (handle nulls)
-                    if DetailObj.Get('code', JsonToken) and not JsonToken.AsValue().IsNull then
-                        ErrorCode := JsonToken.AsValue().AsText();
-
-                    if DetailObj.Get('message', JsonToken) and not JsonToken.AsValue().IsNull then
-                        ErrorDetail := JsonToken.AsValue().AsText();
-
-                    if DetailObj.Get('propertyPath', JsonToken) and not JsonToken.AsValue().IsNull then
-                        PropertyPath := JsonToken.AsValue().AsText();
-
-                    if DetailObj.Get('target', JsonToken) and not JsonToken.AsValue().IsNull then
-                        Target := JsonToken.AsValue().AsText();
-
-                    if i > 0 then
-                        ErrorMessage += '\';
-
-                    // Build error line (handle missing code)
-                    if ErrorCode <> '' then
-                        ErrorMessage += StrSubstNo('%1: %2', ErrorCode, ErrorDetail)
-                    else
-                        ErrorMessage += ErrorDetail; // No code, just message
-
-                    // Add target value if available
-                    if Target <> '' then
-                        ErrorMessage += StrSubstNo(' [Value: %1]', Target);
-
-                    // Add property path
-                    if PropertyPath <> '' then
-                        ErrorMessage += StrSubstNo(' (Field: %1)', PropertyPath);
-                end;
-            end;
-        end else begin
-            // No details array, use main error message
-            if MainErrorMessage <> '' then
-                ErrorMessage += MainErrorMessage
-            else
-                ErrorMessage += 'Unknown error';
         end;
 
         exit(ErrorMessage);
@@ -574,7 +568,25 @@ codeunit 70000008 "MY eInv Submission"
         SalesInvoiceHeader."MY eInv Status" := Status;
         SalesInvoiceHeader."MY eInv Error Message" := CopyStr(ErrorMessage, 1, 250);
         SalesInvoiceHeader."MY eInv Submission Date" := Today;
-        SalesInvoiceHeader.Modify(true);
+        SalesInvoiceHeader.Modify(false);
+    end;
+
+    local procedure ConvertTextToStatus(StatusText: Text): Enum "MY eInv Status"
+    begin
+        case StatusText of
+            'Valid':
+                exit("MY eInv Status"::Valid);
+            'Invalid':
+                exit("MY eInv Status"::Invalid);
+            'Submitted', 'Processing':
+                exit("MY eInv Status"::Submitted);
+            'Cancelled':
+                exit("MY eInv Status"::Cancelled);
+            'Rejected':
+                exit("MY eInv Status"::Rejected);
+            else
+                exit("MY eInv Status"::" "); // or whatever your default/blank value is
+        end;
     end;
 
     procedure GetDocumentDetails(var SalesInvoiceHeader: Record "Sales Invoice Header"): Boolean
@@ -604,7 +616,6 @@ codeunit 70000008 "MY eInv Submission"
         RequestHeaders: HttpHeaders;
         JsonResponse: JsonObject;
         JsonToken: JsonToken;
-        DocumentDetails: JsonObject;
         ApiUrl: Text;
         DocumentStatus: Text;
         LongId: Text;
@@ -640,38 +651,167 @@ codeunit 70000008 "MY eInv Submission"
         end;
 
         // Extract status
-        if JsonResponse.Get('status', JsonToken) then
-            DocumentStatus := JsonToken.AsValue().AsText();
+        if JsonResponse.Get('status', JsonToken) and not JsonToken.AsValue().IsNull then
+            DocumentStatus := JsonToken.AsValue().AsText()
+        else
+            DocumentStatus := '';
 
-        // Only proceed if document is validated
-        if DocumentStatus <> 'Valid' then begin
-            ResponseText := StrSubstNo('Document status: %1 (not yet validated)', DocumentStatus);
-            exit(false);
-        end;
+        // Extract long ID (may be empty string)
+        if JsonResponse.Get('longId', JsonToken) and not JsonToken.AsValue().IsNull then
+            LongId := JsonToken.AsValue().AsText()
+        else
+            LongId := '';
 
-        // Extract long ID
-        if JsonResponse.Get('longId', JsonToken) then
-            LongId := JsonToken.AsValue().AsText();
-
-        // Extract validation date/time
-        if JsonResponse.Get('validationDateTime', JsonToken) then
+        // Extract validation date/time (use dateTimeValidated)
+        if JsonResponse.Get('dateTimeValidated', JsonToken) and not JsonToken.AsValue().IsNull then
             ValidationDateTime := EvaluateDateTime(JsonToken.AsValue().AsText());
 
-        // Extract IRBM Unique ID from document details
-        if JsonResponse.Get('documentDetails', JsonToken) then begin
-            DocumentDetails := JsonToken.AsObject();
-            if DocumentDetails.Get('irbmUniqueId', JsonToken) then
-                IRBMUniqueId := JsonToken.AsValue().AsText();
+        // Check document status
+        case DocumentStatus of
+            'Valid':
+                begin
+                    // Document is valid - extract IRBM Unique ID
+                    // Note: In your JSON structure, there's no nested documentDetails
+                    // The IRBM Unique ID might be in a different field or not present yet
+                    // You may need to check the actual API documentation for the correct field name
+
+                    // Try to get IRBM Unique ID (field name may vary)
+                    if JsonResponse.Get('irbmUniqueId', JsonToken) and not JsonToken.AsValue().IsNull then
+                        IRBMUniqueId := JsonToken.AsValue().AsText()
+                    else if JsonResponse.Get('uuid', JsonToken) and not JsonToken.AsValue().IsNull then
+                        IRBMUniqueId := JsonToken.AsValue().AsText(); // Fallback to UUID
+
+                    // Build validation URL
+                    ValidationURL := BuildValidationURL(Setup, SalesInvoiceHeader."MY eInv Document UUID", LongId);
+                    ResponseText := StrSubstNo('Document validated successfully.\IRBM Unique ID: %1\Validation Date: %2', IRBMUniqueId, ValidationDateTime);
+
+                    // Update invoice header with validation data
+                    UpdateInvoiceWithValidationData(SalesInvoiceHeader, IRBMUniqueId, LongId, ValidationDateTime, ValidationURL);
+                    UpdateInvoiceStatus(SalesInvoiceHeader, DocumentStatus, ''); // Set status to Valid and clear error
+
+                    exit(true);
+                end;
+
+            'Invalid':
+                begin
+                    // Document has validation errors
+                    ResponseText := ExtractValidationErrors(JsonResponse, DocumentStatus, ValidationDateTime);
+                    UpdateInvoiceStatus(SalesInvoiceHeader, DocumentStatus, ResponseText);
+
+                    exit(false);
+                end;
+
+            'Submitted', 'Processing':
+                begin
+                    // Document is still being processed
+                    ResponseText := StrSubstNo('Document status: %1\The document is still being validated by MyInvois. Please check again later.', DocumentStatus);
+                    UpdateInvoiceStatus(SalesInvoiceHeader, DocumentStatus, '');
+                    exit(false);
+                end;
+
+            else begin
+                // Unknown or other status
+                ResponseText := StrSubstNo('Document status: %1\Validation Date: %2', DocumentStatus, ValidationDateTime);
+                UpdateInvoiceStatus(SalesInvoiceHeader, DocumentStatus, ResponseText);
+                exit(false);
+            end;
+        end;
+    end;
+
+    local procedure ExtractValidationErrors(JsonResponse: JsonObject; DocumentStatus: Text; ValidationDateTime: DateTime): Text
+    var
+        JsonToken: JsonToken;
+        ValidationResults: JsonObject;
+        ValidationSteps: JsonArray;
+        StepObj: JsonObject;
+        ErrorObj: JsonObject;
+        InnerErrorArray: JsonArray;
+        InnerErrorObj: JsonObject;
+        ErrorMessage: Text;
+        StepStatus: Text;
+        ErrorCode: Text;
+        ErrorText: Text;
+        i: Integer;
+        j: Integer;
+        ErrorCount: Integer;
+    begin
+        ErrorMessage := 'Validation failed: ';
+        ErrorCount := 0;
+
+        // Get validationResults
+        if not JsonResponse.Get('validationResults', JsonToken) then
+            exit(ErrorMessage + 'No validation details available.');
+
+        ValidationResults := JsonToken.AsObject();
+
+        // Get validationSteps array
+        if not ValidationResults.Get('validationSteps', JsonToken) then
+            exit(ErrorMessage + 'No validation steps found.');
+
+        ValidationSteps := JsonToken.AsArray();
+
+        // Loop through validation steps
+        for i := 0 to ValidationSteps.Count - 1 do begin
+            ValidationSteps.Get(i, JsonToken);
+            StepObj := JsonToken.AsObject();
+
+            // Get step status
+            if StepObj.Get('status', JsonToken) and not JsonToken.AsValue().IsNull then
+                StepStatus := JsonToken.AsValue().AsText();
+
+            // Only process invalid steps
+            if StepStatus = 'Invalid' then begin
+                if StepObj.Get('error', JsonToken) then begin
+                    ErrorObj := JsonToken.AsObject();
+
+                    // Get innerError array with detailed errors
+                    if ErrorObj.Get('innerError', JsonToken) then begin
+                        InnerErrorArray := JsonToken.AsArray();
+
+                        for j := 0 to InnerErrorArray.Count - 1 do begin
+                            InnerErrorArray.Get(j, JsonToken);
+                            InnerErrorObj := JsonToken.AsObject();
+
+                            // Extract error code and message
+                            if InnerErrorObj.Get('errorCode', JsonToken) and not JsonToken.AsValue().IsNull then
+                                ErrorCode := JsonToken.AsValue().AsText();
+
+                            if InnerErrorObj.Get('error', JsonToken) and not JsonToken.AsValue().IsNull then
+                                ErrorText := JsonToken.AsValue().AsText();
+
+                            // Add error to message (with separator if not first)
+                            if ErrorCount > 0 then
+                                ErrorMessage += '; ';
+
+                            ErrorMessage += '[' + ErrorCode + '] ' + ErrorText;
+                            ErrorCount += 1;
+
+                            // Stop if message is getting too long (leave room for potential more errors indicator)
+                            if StrLen(ErrorMessage) > 200 then begin
+                                if j < InnerErrorArray.Count - 1 then
+                                    ErrorMessage += '... +' + Format(InnerErrorArray.Count - j - 1) + ' more';
+                                exit(ErrorMessage);
+                            end;
+                        end;
+                    end;
+                end;
+            end;
         end;
 
-        // Build validation URL
-        ValidationURL := BuildValidationURL(Setup, SalesInvoiceHeader."MY eInv Document UUID", LongId);
+        if ErrorCount = 0 then
+            ErrorMessage += 'Unknown validation error.';
 
-        // Update invoice header with validation data
-        UpdateInvoiceWithValidationData(SalesInvoiceHeader, IRBMUniqueId, LongId, ValidationDateTime, ValidationURL);
+        exit(ErrorMessage);
+    end;
 
-        ResponseText := StrSubstNo('Document validated successfully.\IRBM Unique ID: %1\Validation Date: %2', IRBMUniqueId, ValidationDateTime);
-        exit(true);
+    local procedure EvaluateDateTime(DateTimeText: Text): DateTime
+    var
+        ResultDateTime: DateTime;
+    begin
+        if Evaluate(ResultDateTime, DateTimeText, 9) then // Format 9 is ISO 8601
+            exit(ResultDateTime);
+
+        exit(0DT); // Return blank datetime if parsing fails
     end;
 
     local procedure BuildValidationURL(Setup: Record "MY eInv Setup"; DocumentUUID: Text; LongId: Text): Text
@@ -685,6 +825,16 @@ codeunit 70000008 "MY eInv Submission"
         exit(StrSubstNo('%1/%2/share/%3', BaseURL, DocumentUUID, LongId));
     end;
 
+    local procedure UpdateInvoiceStatus(var SalesInvoiceHeader: Record "Sales Invoice Header"; StatusText: Text; ErrorMessage: Text)
+    var
+        EInvStatus: Enum "MY eInv Status";
+    begin
+        EInvStatus := ConvertTextToStatus(StatusText);
+        SalesInvoiceHeader."MY eInv Status" := EInvStatus;
+        SalesInvoiceHeader."MY eInv Error Message" := CopyStr(ErrorMessage, 1, MaxStrLen(SalesInvoiceHeader."MY eInv Error Message"));
+        SalesInvoiceHeader.Modify(true);
+    end;
+
     local procedure UpdateInvoiceWithValidationData(var SalesInvoiceHeader: Record "Sales Invoice Header"; IRBMUniqueId: Text; LongId: Text; ValidationDateTime: DateTime; ValidationURL: Text)
     begin
         if SalesInvoiceHeader.Get(SalesInvoiceHeader."No.") then begin
@@ -692,18 +842,8 @@ codeunit 70000008 "MY eInv Submission"
             SalesInvoiceHeader."MY eInv Long ID" := CopyStr(LongId, 1, 100);
             SalesInvoiceHeader."MY eInv Validation Date" := ValidationDateTime;
             SalesInvoiceHeader."MY eInv Validation URL" := CopyStr(ValidationURL, 1, 250);
-            SalesInvoiceHeader."MY eInv Status" := SalesInvoiceHeader."MY eInv Status"::Valid;
             SalesInvoiceHeader.Modify(true);
         end;
-    end;
-
-    local procedure EvaluateDateTime(DateTimeText: Text): DateTime
-    var
-        ResultDateTime: DateTime;
-    begin
-        if Evaluate(ResultDateTime, DateTimeText, 9) then // XML format
-            exit(ResultDateTime);
-        exit(0DT);
     end;
 
 

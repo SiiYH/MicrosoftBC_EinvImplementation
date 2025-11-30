@@ -37,23 +37,47 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                     ToolTip = 'Current status in MyInvois system.';
                     StyleExpr = StatusStyleExpr;
                 }
-
-                field("MY eInv Submission UID"; Rec."MY eInv Submission UID")
+                group(Submmited)
                 {
-                    ApplicationArea = All;
-                    ToolTip = 'Unique Identifier Number (UIN) from MyInvois.';
+                    field("MY eInv Submission UID"; Rec."MY eInv Submission UID")
+                    {
+                        ApplicationArea = All;
+                        ToolTip = 'Unique Identifier Number (UIN) from MyInvois.';
 
-                    trigger OnDrillDown()
-                    begin
-                        if Rec."MY eInv Validation URL" <> '' then
-                            Hyperlink(Rec."MY eInv Validation URL");
-                    end;
+                        trigger OnDrillDown()
+                        begin
+                            if Rec."MY eInv Validation URL" <> '' then
+                                Hyperlink(Rec."MY eInv Validation URL");
+                        end;
+                    }
+                    field("MY eInv Document UUID"; Rec."MY eInv Document UUID")
+                    {
+                        ApplicationArea = All;
+                        ToolTip = 'Specifies the value of the Document UUID field.', Comment = '%';
+                    }
                 }
-                field("MY eInv Long ID"; Rec."MY eInv Long ID")
+                group(Validated)
                 {
-                    ApplicationArea = All;
-                    ToolTip = 'Specifies the value of the MY eInv Long ID field.', Comment = '%';
+                    Visible = Rec."MY eInv Status" = Rec."MY eInv Status"::Valid;
+                    field("MY eInv IRBM Unique ID"; Rec."MY eInv IRBM Unique ID")
+                    {
+                        ApplicationArea = All;
+                        ToolTip = 'Specifies the value of the IRBM Unique ID field.', Comment = '%';
+                    }
+                    field("MY eInv Long ID"; Rec."MY eInv Long ID")
+                    {
+                        ApplicationArea = All;
+                        ToolTip = 'Specifies the value of the MY eInv Long ID field.', Comment = '%';
+                    }
+                    field("MY eInv Validation Date"; Rec."MY eInv Validation Date")
+                    {
+                        ApplicationArea = All;
+                        ToolTip = 'Specifies the value of the Validation Date/Time field.', Comment = '%';
+                    }
                 }
+
+
+
                 field("MY eInv Submission Date"; Rec."MY eInv Submission Date")
                 {
                     ApplicationArea = All;
@@ -149,7 +173,9 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                     var
                         Submission: Codeunit "MY eInv Submission";
                         StatusMsg: Text;
+                        Window: Dialog;
                     begin
+                        // Check if already validated
                         if Rec."MY eInv IRBM Unique ID" <> '' then begin
                             Message('This document is already validated.\IRBM Unique ID: %1\Validation Date: %2',
                                     Rec."MY eInv IRBM Unique ID",
@@ -157,17 +183,37 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                             exit;
                         end;
 
-                        if Rec."MY eInv Document UUID" = '' then begin
+                        // Check if submitted
+                        if Rec."MY eInv Document UUID" = '' then
                             Error('This document has not been submitted to MyInvois yet.');
-                        end;
 
+                        // Show processing message
+                        Window.Open('Checking document status with MyInvois...');
+
+                        // Get document details
                         if Submission.GetDocumentDetails(Rec) then begin
+                            Window.Close();
                             CurrPage.Update(false);
                             Message('Document validated successfully!\IRBM Unique ID: %1\You can now print the invoice.',
                                     Rec."MY eInv IRBM Unique ID");
                         end else begin
-                            Message('Document has been submitted but is not validated yet.\Status: %1\Please try again in a few moments.',
-                                    Rec."MY eInv Status");
+                            Window.Close();
+                            CurrPage.Update(false);
+
+                            // Get detailed status/error message
+                            StatusMsg := Submission.GetLastErrorMessage();
+
+                            // Show message based on actual status
+                            case Rec."MY eInv Status" of
+                                "MY eInv Status"::Invalid:
+                                    Message('Document validation FAILED!\%1', StatusMsg);
+
+                                "MY eInv Status"::Submitted:
+                                    Message('Document is still being validated.\Status: %1\Please check again in a few moments.', Rec."MY eInv Status");
+
+                                else
+                                    Message('Status: %1\%2', Rec."MY eInv Status", StatusMsg);
+                            end;
                         end;
                     end;
                 }
