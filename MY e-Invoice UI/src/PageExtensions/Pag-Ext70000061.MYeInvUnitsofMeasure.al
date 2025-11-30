@@ -16,6 +16,23 @@ pageextension 70000061 "MY eInv Units of Measure" extends "Units of Measure"
     {
         addlast(processing)
         {
+            action(AutoMapLHDNUOMAssist)
+            {
+                ApplicationArea = All;
+                Caption = 'Auto-Map LHDN UOM with Assist';
+                Image = MapAccounts;
+                ToolTip = 'Automatically map Units of Measure to LHDN codes';
+
+                trigger OnAction()
+                var
+                    UnitOfMeasure: Record "Unit of Measure";
+                    MappingAssist: Page "MY eInv UOM Mapping Assist";
+                begin
+                    // Open assisted mapping page instead of auto-mapping
+                    MappingAssist.RunModal();
+                    CurrPage.Update(false);
+                end;
+            }
             action(AutoMapLHDNUOM)
             {
                 ApplicationArea = All;
