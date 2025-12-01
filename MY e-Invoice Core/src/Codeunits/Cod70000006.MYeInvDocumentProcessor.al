@@ -26,7 +26,7 @@ codeunit 70000006 "MY eInv Document Processor"
     local procedure ProcessDocument(Document: Interface "MY eInv Document")
     var
         Setup: Record "MY eInv Setup";
-        XMLGenerator: Codeunit "MY eInv XML Generator 02";
+        XMLGenerator: Codeunit "MY eInv XML Generator";
         DigitalSignature: Codeunit "MY eInv Digital Signature";
         Submission: Codeunit "MY eInv Submission";
         DocumentXML: Text;

@@ -225,7 +225,7 @@ pageextension 70000052 "MY eInv Sales Invoice" extends "Sales Invoice"
     local procedure PreviewEInvoiceXML()
     var
         TempSalesInvoiceHeader: Record "Sales Invoice Header" temporary;
-        XMLGenerator: Codeunit "MY eInv XML Generator 02";
+        XMLGenerator: Codeunit "MY eInv XML Generator";
         XMLText: Text;
         TempBlob: Codeunit "Temp Blob";
         OutStream: OutStream;
@@ -254,7 +254,7 @@ pageextension 70000052 "MY eInv Sales Invoice" extends "Sales Invoice"
     local procedure TestDigitalSignature()
     var
         TempSalesInvoiceHeader: Record "Sales Invoice Header" temporary;
-        XMLGenerator: Codeunit "MY eInv XML Generator 02";
+        XMLGenerator: Codeunit "MY eInv XML Generator";
 
         Setup: Record "MY eInv Setup";
         DigitalSignature: Codeunit "MY eInv Digital Signature";
