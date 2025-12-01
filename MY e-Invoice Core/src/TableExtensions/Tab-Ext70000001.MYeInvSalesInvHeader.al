@@ -91,6 +91,7 @@ tableextension 70000001 "MY eInv Sales Inv Header" extends "Sales Invoice Header
         }
         field(70000012; "MY eInv Error Message"; Text[250])
         {
+            Caption = 'Error/Cancellation Message';
             DataClassification = CustomerContent;
             Editable = false;
         }
@@ -114,6 +115,18 @@ tableextension 70000001 "MY eInv Sales Inv Header" extends "Sales Invoice Header
         field(70000015; "MY eInv Validation Date"; DateTime)
         {
             Caption = 'Validation Date/Time';
+            DataClassification = CustomerContent;
+            Editable = false;
+        }
+        field(70000016; "MY eInv Cancellation Date"; Date)
+        {
+            Caption = 'Cancellation Date';
+            DataClassification = CustomerContent;
+            Editable = false;
+        }
+        field(70000017; "MY eInv Cancellation Time"; Time)
+        {
+            Caption = 'Cancellation Time';
             DataClassification = CustomerContent;
             Editable = false;
         }
@@ -173,58 +186,7 @@ tableextension 70000001 "MY eInv Sales Inv Header" extends "Sales Invoice Header
             Error('Failed to retrieve document status from MyInvois API.');
     end;
 
-    procedure CancelInMyInvois()
-    var
-        Setup: Record "MY eInv Setup";
-        Submission: Codeunit "MY eInv Submission";
-        CancellationReason: Text;
-        Selection: Integer;
-    begin
-        if "MY eInv Submission UID" = '' then
-            Error('This invoice has not been submitted to MyInvois yet.');
 
-        if "MY eInv Cancelled" then
-            Error('This invoice is already cancelled in MyInvois.');
-
-        // Prompt for cancellation reason
-        CancellationReason := '';
-
-        // Use StrMenu for predefined reasons or plain assignment for free text
-        Selection := StrMenu(
-        'Wrong Invoice Details,Duplicate Invoice,Customer Request,Pricing Error,Data Entry Error,Other',
-        1,
-        'Select cancellation reason:');
-
-        case Selection of
-            0:
-                exit; // User cancelled
-            1:
-                CancellationReason := 'Wrong Invoice Details';
-            2:
-                CancellationReason := 'Duplicate Invoice';
-            3:
-                CancellationReason := 'Customer Request';
-            4:
-                CancellationReason := 'Pricing Error';
-            5:
-                CancellationReason := 'Data Entry Error';
-            6:
-                CancellationReason := 'Other';
-        end;
-
-        if CancellationReason = '' then
-            Error('Cancellation reason is required.');
-
-        Setup.Get();
-
-        if Submission.CancelDocument("MY eInv Submission UID", CancellationReason, Setup) then begin
-            "MY eInv Status" := "MY eInv Status"::Cancelled;
-            "MY eInv Cancelled" := true;
-            Modify();
-            Message('Invoice cancelled successfully in MyInvois.');
-        end else
-            Error('Failed to cancel invoice in MyInvois.');
-    end;
 
     procedure GetInvoiceTypeFromLHDN(): Code[20]
     var

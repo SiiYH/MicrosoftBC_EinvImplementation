@@ -26,4 +26,7 @@ enum 70000002 "MY eInv Status"
     {
         Caption = 'Rejected';
     }
+    //more detail of cancellation
+    value(7; "Cancellation Failed") { Caption = 'Cancellation Failed'; }
+    value(8; Error) { Caption = 'Error'; }
 }

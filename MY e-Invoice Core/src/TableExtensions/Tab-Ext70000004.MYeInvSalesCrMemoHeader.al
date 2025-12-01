@@ -150,7 +150,8 @@ tableextension 70000004 "MY eInv Sales Cr Memo Header" extends "Sales Cr.Memo He
             Error('Failed to retrieve document status from MyInvois API.');
     end;
 
-    procedure CancelInMyInvois()
+    //comment for 01 Dec 25
+    /* procedure CancelInMyInvois()
     var
         Setup: Record "MY eInv Setup";
         Submission: Codeunit "MY eInv Submission";
@@ -201,7 +202,7 @@ tableextension 70000004 "MY eInv Sales Cr Memo Header" extends "Sales Cr.Memo He
             Message('Invoice cancelled successfully in MyInvois.');
         end else
             Error('Failed to cancel invoice in MyInvois.');
-    end;
+    end; */
 
     procedure GetInvoiceTypeFromLHDN(): Code[20]
     var

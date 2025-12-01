@@ -488,9 +488,63 @@ codeunit 70000008 "MY eInv Submission"
     // Document Cancellation
     // ═════════════════════════════════════════════════════════════════
 
-    procedure CancelDocument(SubmissionUID: Text; Reason: Text; Setup: Record "MY eInv Setup"): Boolean
+    procedure CancelInMyInvois(SalesInvHeader: Record "Sales Invoice Header")
+    var
+        Setup: Record "MY eInv Setup";
+        Submission: Codeunit "MY eInv Submission";
+        CancellationReason: Text;
+        Selection: Integer;
+    begin
+        if SalesInvHeader."MY eInv Submission UID" = '' then
+            Error('This invoice has not been submitted to MyInvois yet.');
+
+        if SalesInvHeader."MY eInv Cancelled" then
+            Error('This invoice is already cancelled in MyInvois.');
+
+        // Prompt for cancellation reason
+        CancellationReason := '';
+
+        // Use StrMenu for predefined reasons or plain assignment for free text
+        Selection := StrMenu(
+        'Wrong Invoice Details,Duplicate Invoice,Customer Request,Pricing Error,Data Entry Error,Other',
+        1,
+        'Select cancellation reason:');
+
+        case Selection of
+            0:
+                exit; // User cancelled
+            1:
+                CancellationReason := 'Wrong Invoice Details';
+            2:
+                CancellationReason := 'Duplicate Invoice';
+            3:
+                CancellationReason := 'Customer Request';
+            4:
+                CancellationReason := 'Pricing Error';
+            5:
+                CancellationReason := 'Data Entry Error';
+            6:
+                CancellationReason := 'Other';
+        end;
+
+        if CancellationReason = '' then
+            Error('Cancellation reason is required.');
+
+        Setup.Get();
+
+        if Submission.CancelDocument(SalesInvHeader, CancellationReason, Setup) then begin
+            SalesInvHeader."MY eInv Status" := "MY eInv Status"::Cancelled;
+            SalesInvHeader."MY eInv Cancelled" := true;
+            SalesInvHeader.Modify();
+            Message('Invoice cancelled successfully in MyInvois.');
+        end else
+            Error('Failed to cancel invoice in MyInvois.');
+    end;
+
+    procedure CancelDocument(var SalesInvoiceHeader: Record "Sales Invoice Header"; Reason: Text; Setup: Record "MY eInv Setup"): Boolean
     var
         Authentication: Codeunit "MY eInv Authentication";
+        SubmissionLog: Record "MY eInv Submission Log";
         Client: HttpClient;
         RequestMessage: HttpRequestMessage;
         ResponseMessage: HttpResponseMessage;
@@ -498,24 +552,33 @@ codeunit 70000008 "MY eInv Submission"
         Content: HttpContent;
         ContentHeaders: HttpHeaders;
         RequestJson: JsonObject;
+        StatusJson: JsonObject;
         RequestBody: Text;
+        ResponseBody: Text;
         ApiUrl: Text;
         AccessToken: Text;
+        Success: Boolean;
     begin
         // Get valid token
         AccessToken := Authentication.GetValidToken(Setup);
-        if AccessToken = '' then
+        if AccessToken = '' then begin
+            CreateCancellationLog(SubmissionLog, SalesInvoiceHeader, SalesInvoiceHeader."MY eInv IRBM Unique ID",
+                Reason, false, 'Failed to get access token');
             exit(false);
+        end;
 
         // Build API URL
-        ApiUrl := Setup."API Base URL";  // or "MyInvois API URL"
+        ApiUrl := Setup."API Base URL";
         if not ApiUrl.EndsWith('/') then
             ApiUrl += '/';
-        ApiUrl += 'api/v1.0/documentsubmissions/' + SubmissionUID + '/cancel';
+        ApiUrl += 'api/v1.0/documents/state/' + SalesInvoiceHeader."MY eInv IRBM Unique ID" + '/state';
 
         // Build request
-        RequestJson.Add('reason', Reason);
-        RequestJson.WriteTo(RequestBody);
+        StatusJson.Add('status', 'cancelled');
+        StatusJson.Add('reason', Reason);
+        /* RequestJson.Add('status', StatusJson);
+        RequestJson.WriteTo(RequestBody); */
+        StatusJson.WriteTo(RequestBody);
 
         Content.WriteFrom(RequestBody);
         Content.GetHeaders(ContentHeaders);
@@ -532,10 +595,90 @@ codeunit 70000008 "MY eInv Submission"
         Client.Timeout(Setup."Timeout (Seconds)" * 1000);
 
         // Send request
-        if not Client.Send(RequestMessage, ResponseMessage) then
-            exit(false);
+        Success := Client.Send(RequestMessage, ResponseMessage);
 
-        exit(ResponseMessage.IsSuccessStatusCode);
+        if Success then begin
+            Success := ResponseMessage.IsSuccessStatusCode;
+            ResponseMessage.Content.ReadAs(ResponseBody);
+        end else
+            ResponseBody := 'Failed to send HTTP request';
+
+        // Log the cancellation attempt
+        CreateCancellationLog(SubmissionLog, SalesInvoiceHeader, SalesInvoiceHeader."MY eInv Submission UID",
+            Reason, Success, ResponseBody);
+
+        // Update invoice header
+        if Success then
+            UpdateInvoiceHeaderForCancellation(SalesInvoiceHeader, '')
+        else
+            UpdateInvoiceHeaderForCancellation(SalesInvoiceHeader, ResponseBody);
+
+        exit(Success);
+    end;
+
+    local procedure CreateCancellationLog(var SubmissionLog: Record "MY eInv Submission Log"; SalesInvoiceHeader: Record "Sales Invoice Header"; SubmissionUID: Text; Reason: Text; Success: Boolean; ResponseText: Text)
+    begin
+        SubmissionLog.Init();
+        SubmissionLog."Entry No." := GetNextEntryNo();
+        SubmissionLog."Document Type" := '01';
+        SubmissionLog."Document No." := SalesInvoiceHeader."No.";
+        SubmissionLog."Customer No." := SalesInvoiceHeader."Sell-to Customer No.";
+        SubmissionLog."Customer Name" := SalesInvoiceHeader."Sell-to Customer Name";
+        SubmissionLog."Submission Date Time" := CurrentDateTime;
+        SubmissionLog."Submission UID" := CopyStr(SubmissionUID, 1, MaxStrLen(SubmissionLog."Submission UID"));
+        SubmissionLog."Cancellation Reason" := CopyStr(Reason, 1, MaxStrLen(SubmissionLog."Cancellation Reason"));
+        SubmissionLog.Status := GetCancellationStatus(Success);  // Will set to Cancelled or Cancellation Failed
+        SubmissionLog."Response Text" := CopyStr(ResponseText, 1, MaxStrLen(SubmissionLog."Response Text"));
+        SubmissionLog.Insert(true);
+    end;
+
+    local procedure GetCancellationStatus(Success: Boolean): Enum "MY eInv Status"
+    var
+        EInvStatus: Enum "MY eInv Status";
+    begin
+        if Success then
+            exit(EInvStatus::Cancelled)
+        else
+            exit(EInvStatus::"Cancellation Failed");
+    end;
+
+    local procedure UpdateInvoiceHeaderForCancellation(var SalesInvoiceHeader: Record "Sales Invoice Header"; ErrorMessage: Text)
+    var
+        EInvStatus: Enum "MY eInv Status";
+    begin
+        if ErrorMessage = '' then
+            SalesInvoiceHeader."MY eInv Status" := EInvStatus::Cancelled
+        else
+            SalesInvoiceHeader."MY eInv Status" := EInvStatus::"Cancellation Failed";
+
+        SalesInvoiceHeader."MY eInv Cancellation Date" := Today;
+        SalesInvoiceHeader."MY eInv Cancellation Time" := Time;
+
+        if ErrorMessage <> '' then
+            SalesInvoiceHeader."MY eInv Error Message" := CopyStr(ErrorMessage, 1, 250)
+        else
+            SalesInvoiceHeader."MY eInv Error Message" := '';
+
+        SalesInvoiceHeader.Modify(true);
+    end;
+
+    local procedure UpdateInvoiceWithCancellationData(var SalesInvoiceHeader: Record "Sales Invoice Header"; CancellationDateTime: DateTime; CancellationReason: Text)
+    var
+        EInvStatus: Enum "MY eInv Status";
+    begin
+        SalesInvoiceHeader."MY eInv Status" := EInvStatus::Cancelled;
+        SalesInvoiceHeader."MY eInv Cancelled" := true;
+
+        if CancellationDateTime <> 0DT then begin
+            SalesInvoiceHeader."MY eInv Cancellation Date" := DT2Date(CancellationDateTime);
+            SalesInvoiceHeader."MY eInv Cancellation Time" := DT2Time(CancellationDateTime);
+        end;
+
+        if CancellationReason <> '' then
+            SalesInvoiceHeader."MY eInv Error Message" := CopyStr(CancellationReason, 1, MaxStrLen(SalesInvoiceHeader."MY eInv Error Message"));
+
+        SalesInvoiceHeader."MY eInv Error Message" := '';
+        SalesInvoiceHeader.Modify(true);
     end;
 
 
@@ -569,6 +712,27 @@ codeunit 70000008 "MY eInv Submission"
         SalesInvoiceHeader."MY eInv Error Message" := CopyStr(ErrorMessage, 1, 250);
         SalesInvoiceHeader."MY eInv Submission Date" := Today;
         SalesInvoiceHeader.Modify(false);
+    end;
+
+    local procedure UpdateInvoiceStatus(var SalesInvoiceHeader: Record "Sales Invoice Header"; StatusText: Text; ErrorMessage: Text)
+    var
+        EInvStatus: Enum "MY eInv Status";
+    begin
+        EInvStatus := ConvertTextToStatus(StatusText);
+        SalesInvoiceHeader."MY eInv Status" := EInvStatus;
+        SalesInvoiceHeader."MY eInv Error Message" := CopyStr(ErrorMessage, 1, MaxStrLen(SalesInvoiceHeader."MY eInv Error Message"));
+        SalesInvoiceHeader.Modify(true);
+    end;
+
+    local procedure UpdateInvoiceWithValidationData(var SalesInvoiceHeader: Record "Sales Invoice Header"; IRBMUniqueId: Text; LongId: Text; ValidationDateTime: DateTime; ValidationURL: Text)
+    begin
+        if SalesInvoiceHeader.Get(SalesInvoiceHeader."No.") then begin
+            SalesInvoiceHeader."MY eInv IRBM Unique ID" := CopyStr(IRBMUniqueId, 1, 50);
+            SalesInvoiceHeader."MY eInv Long ID" := CopyStr(LongId, 1, 100);
+            SalesInvoiceHeader."MY eInv Validation Date" := ValidationDateTime;
+            SalesInvoiceHeader."MY eInv Validation URL" := CopyStr(ValidationURL, 1, 250);
+            SalesInvoiceHeader.Modify(true);
+        end;
     end;
 
     local procedure ConvertTextToStatus(StatusText: Text): Enum "MY eInv Status"
@@ -622,6 +786,8 @@ codeunit 70000008 "MY eInv Submission"
         IRBMUniqueId: Text;
         ValidationDateTime: DateTime;
         ValidationURL: Text;
+        CancellationDateTime: DateTime;
+        CancellationReason: Text;
     begin
         ApiUrl := Setup."API Base URL" + '/api/v1.0/documents/' + SalesInvoiceHeader."MY eInv Document UUID" + '/details';
 
@@ -656,13 +822,13 @@ codeunit 70000008 "MY eInv Submission"
         else
             DocumentStatus := '';
 
-        // Extract long ID (may be empty string)
+        // Extract long ID
         if JsonResponse.Get('longId', JsonToken) and not JsonToken.AsValue().IsNull then
             LongId := JsonToken.AsValue().AsText()
         else
             LongId := '';
 
-        // Extract validation date/time (use dateTimeValidated)
+        // Extract validation date/time
         if JsonResponse.Get('dateTimeValidated', JsonToken) and not JsonToken.AsValue().IsNull then
             ValidationDateTime := EvaluateDateTime(JsonToken.AsValue().AsText());
 
@@ -670,16 +836,9 @@ codeunit 70000008 "MY eInv Submission"
         case DocumentStatus of
             'Valid':
                 begin
-                    // Document is valid - extract IRBM Unique ID
-                    // Note: In your JSON structure, there's no nested documentDetails
-                    // The IRBM Unique ID might be in a different field or not present yet
-                    // You may need to check the actual API documentation for the correct field name
-
-                    // Try to get IRBM Unique ID (field name may vary)
-                    if JsonResponse.Get('irbmUniqueId', JsonToken) and not JsonToken.AsValue().IsNull then
-                        IRBMUniqueId := JsonToken.AsValue().AsText()
-                    else if JsonResponse.Get('uuid', JsonToken) and not JsonToken.AsValue().IsNull then
-                        IRBMUniqueId := JsonToken.AsValue().AsText(); // Fallback to UUID
+                    // Document is valid - extract UUID as IRBM Unique ID
+                    if JsonResponse.Get('uuid', JsonToken) and not JsonToken.AsValue().IsNull then
+                        IRBMUniqueId := JsonToken.AsValue().AsText();
 
                     // Build validation URL
                     ValidationURL := BuildValidationURL(Setup, SalesInvoiceHeader."MY eInv Document UUID", LongId);
@@ -687,7 +846,7 @@ codeunit 70000008 "MY eInv Submission"
 
                     // Update invoice header with validation data
                     UpdateInvoiceWithValidationData(SalesInvoiceHeader, IRBMUniqueId, LongId, ValidationDateTime, ValidationURL);
-                    UpdateInvoiceStatus(SalesInvoiceHeader, DocumentStatus, ''); // Set status to Valid and clear error
+                    UpdateInvoiceStatus(SalesInvoiceHeader, DocumentStatus, '');
 
                     exit(true);
                 end;
@@ -701,11 +860,41 @@ codeunit 70000008 "MY eInv Submission"
                     exit(false);
                 end;
 
+            'Cancelled':
+                begin
+                    // Document has been cancelled
+                    // Extract cancellation date/time - use "cancelDateTime" field
+                    if JsonResponse.Get('cancelDateTime', JsonToken) and not JsonToken.AsValue().IsNull then
+                        CancellationDateTime := EvaluateDateTime(JsonToken.AsValue().AsText());
+
+                    // Extract cancellation reason - use "documentStatusReason" field
+                    if JsonResponse.Get('documentStatusReason', JsonToken) and not JsonToken.AsValue().IsNull then
+                        CancellationReason := JsonToken.AsValue().AsText()
+                    else
+                        CancellationReason := 'No reason provided';
+
+                    ResponseText := StrSubstNo('Document has been cancelled.\Cancellation Date: %1\Reason: %2',
+                        CancellationDateTime, CancellationReason);
+
+                    // Update invoice header with cancellation data
+                    UpdateInvoiceWithCancellationData(SalesInvoiceHeader, CancellationDateTime, CancellationReason);
+
+                    exit(true); // Cancellation is successful, not an error
+                end;
+
             'Submitted', 'Processing':
                 begin
                     // Document is still being processed
                     ResponseText := StrSubstNo('Document status: %1\The document is still being validated by MyInvois. Please check again later.', DocumentStatus);
                     UpdateInvoiceStatus(SalesInvoiceHeader, DocumentStatus, '');
+                    exit(false);
+                end;
+
+            'Rejected':
+                begin
+                    // Document has been rejected
+                    ResponseText := StrSubstNo('Document has been rejected.\Validation Date: %1', ValidationDateTime);
+                    UpdateInvoiceStatus(SalesInvoiceHeader, DocumentStatus, ResponseText);
                     exit(false);
                 end;
 
@@ -825,26 +1014,7 @@ codeunit 70000008 "MY eInv Submission"
         exit(StrSubstNo('%1/%2/share/%3', BaseURL, DocumentUUID, LongId));
     end;
 
-    local procedure UpdateInvoiceStatus(var SalesInvoiceHeader: Record "Sales Invoice Header"; StatusText: Text; ErrorMessage: Text)
-    var
-        EInvStatus: Enum "MY eInv Status";
-    begin
-        EInvStatus := ConvertTextToStatus(StatusText);
-        SalesInvoiceHeader."MY eInv Status" := EInvStatus;
-        SalesInvoiceHeader."MY eInv Error Message" := CopyStr(ErrorMessage, 1, MaxStrLen(SalesInvoiceHeader."MY eInv Error Message"));
-        SalesInvoiceHeader.Modify(true);
-    end;
 
-    local procedure UpdateInvoiceWithValidationData(var SalesInvoiceHeader: Record "Sales Invoice Header"; IRBMUniqueId: Text; LongId: Text; ValidationDateTime: DateTime; ValidationURL: Text)
-    begin
-        if SalesInvoiceHeader.Get(SalesInvoiceHeader."No.") then begin
-            SalesInvoiceHeader."MY eInv IRBM Unique ID" := CopyStr(IRBMUniqueId, 1, 50);
-            SalesInvoiceHeader."MY eInv Long ID" := CopyStr(LongId, 1, 100);
-            SalesInvoiceHeader."MY eInv Validation Date" := ValidationDateTime;
-            SalesInvoiceHeader."MY eInv Validation URL" := CopyStr(ValidationURL, 1, 250);
-            SalesInvoiceHeader.Modify(true);
-        end;
-    end;
 
 
     // CREDIT MEMO-SPECIFIC METHODS

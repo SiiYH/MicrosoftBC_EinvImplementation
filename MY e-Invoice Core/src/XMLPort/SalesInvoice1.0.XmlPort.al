@@ -1,4 +1,4 @@
-xmlport 70902 "SalesInvoice1.0 MY01-IBIZ"
+/* xmlport 70902 "SalesInvoice1.0 MY01-IBIZ"
 {
     Caption = 'Sales Invoice 1.0';
     Direction = Export;
@@ -2201,3 +2201,4 @@ xmlport 70902 "SalesInvoice1.0 MY01-IBIZ"
     end;
 }
 
+ */

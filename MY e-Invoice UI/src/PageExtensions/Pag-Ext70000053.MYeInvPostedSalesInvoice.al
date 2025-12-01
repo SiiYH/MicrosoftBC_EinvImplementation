@@ -102,11 +102,25 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                     Editable = false;
                     StyleExpr = 'Subordinate';
                 }
-                field("MY eInv Cancelled"; Rec."MY eInv Cancelled")
+                group(Cancellation)
                 {
-                    ApplicationArea = All;
-                    ToolTip = 'Specifies the value of the MY eInv Cancelled field.', Comment = '%';
+                    field("MY eInv Cancelled"; Rec."MY eInv Cancelled")
+                    {
+                        ApplicationArea = All;
+                        ToolTip = 'Specifies the value of the MY eInv Cancelled field.', Comment = '%';
+                    }
+                    field("MY eInv Cancellation Date"; Rec."MY eInv Cancellation Date")
+                    {
+                        ApplicationArea = All;
+                        ToolTip = 'Specifies the value of the Cancellation Date field.', Comment = '%';
+                    }
+                    field("MY eInv Cancellation Time"; Rec."MY eInv Cancellation Time")
+                    {
+                        ApplicationArea = All;
+                        ToolTip = 'Specifies the value of the Cancellation Time field.', Comment = '%';
+                    }
                 }
+
                 field("MY eInv Error Message"; Rec."MY eInv Error Message")
                 {
                     ApplicationArea = All;
@@ -187,13 +201,20 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                         StatusMsg: Text;
                         Window: Dialog;
                     begin
-                        // Check if already validated
-                        if Rec."MY eInv IRBM Unique ID" <> '' then begin
-                            Message('This document is already validated.\IRBM Unique ID: %1\Validation Date: %2',
-                                    Rec."MY eInv IRBM Unique ID",
-                                    Rec."MY eInv Validation Date");
+                        // Check if already validated or cancelled
+                        /* if Rec."MY eInv IRBM Unique ID" <> '' then begin
+                            if Rec."MY eInv Status" = Rec."MY eInv Status"::Cancelled then begin
+                                Message('This document has been cancelled.\IRBM Unique ID: %1\Cancellation Date: %2\Reason: %3',
+                                        Rec."MY eInv IRBM Unique ID",
+                                        Rec."MY eInv Cancellation Date",
+                                        Rec."MY eInv Error Message");
+                            end else begin
+                                Message('This document is already validated.\IRBM Unique ID: %1\Validation Date: %2',
+                                        Rec."MY eInv IRBM Unique ID",
+                                        Rec."MY eInv Validation Date");
+                            end;
                             exit;
-                        end;
+                        end; */
 
                         // Check if submitted
                         if Rec."MY eInv Document UUID" = '' then
@@ -206,8 +227,16 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                         if Submission.GetDocumentDetails(Rec) then begin
                             Window.Close();
                             CurrPage.Update(false);
-                            Message('Document validated successfully!\IRBM Unique ID: %1\You can now print the invoice.',
-                                    Rec."MY eInv IRBM Unique ID");
+
+                            // Check if document was cancelled
+                            if Rec."MY eInv Status" = Rec."MY eInv Status"::Cancelled then begin
+                                Message('Document has been cancelled.\Cancellation Date: %1\Reason: %2',
+                                        Rec."MY eInv Cancellation Date",
+                                        Rec."MY eInv Error Message");
+                            end else begin
+                                Message('Document validated successfully!\IRBM Unique ID: %1\You can now print the invoice.',
+                                        Rec."MY eInv IRBM Unique ID");
+                            end;
                         end else begin
                             Window.Close();
                             CurrPage.Update(false);
@@ -222,6 +251,12 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
 
                                 "MY eInv Status"::Submitted:
                                     Message('Document is still being validated.\Status: %1\Please check again in a few moments.', Rec."MY eInv Status");
+
+                                "MY eInv Status"::Cancelled:
+                                    Message('Document has been cancelled.\%1', StatusMsg);
+
+                                "MY eInv Status"::Rejected:
+                                    Message('Document has been rejected.\%1', StatusMsg);
 
                                 else
                                     Message('Status: %1\%2', Rec."MY eInv Status", StatusMsg);
@@ -240,12 +275,13 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
 
                     trigger OnAction()
                     var
+                        MyEinvSub: Codeunit "MY eInv Submission";
                         ConfirmQst: Label 'Cancel invoice %1 in MyInvois?\This action cannot be undone.\You have 72 hours from validation to cancel.';
                     begin
                         if not Confirm(ConfirmQst, false, Rec."No.") then
                             exit;
 
-                        Rec.CancelInMyInvois();
+                        MyEinvSub.CancelInMyInvois(Rec);
                         CurrPage.Update();
                     end;
                 }
