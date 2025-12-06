@@ -136,45 +136,67 @@ page 70000050 "MY eInv Setup Card"
                 {
                     ApplicationArea = All;
                 }
-                group(CertifateConfiguration)
+                group(CertificateUpload)
                 {
-                    Caption = 'Certificate Configuration';
+                    Caption = 'Certificate Upload';
+
+                    field("Certificate File Name"; Rec."Certificate File Name")
+                    {
+                        ApplicationArea = All;
+                        ToolTip = 'Name of the uploaded certificate file';
+                        Editable = false;
+                    }
 
                     field("Certificate Configured"; Rec."Certificate Configured")
                     {
-                        ToolTip = 'Specifies the value of the Certificate Configured field.', Comment = '%';
+                        ApplicationArea = All;
+                        ToolTip = 'Indicates if certificate is uploaded to Azure Key Vault';
+                        Style = Favorable;
+                        StyleExpr = Rec."Certificate Configured";
                     }
-                    field("Certificate Content"; Rec."Certificate Content")
-                    {
-                        ToolTip = 'Specifies the value of the Certificate Content field.', Comment = '%';
-                    }
-                    field("Certificate File Name"; Rec."Certificate File Name")
-                    {
-                        ToolTip = 'Name of the uploaded certificate file.';
-                    }
-                    field("Certificate Valid To"; Rec."Certificate Valid To")
-                    {
-                        ToolTip = 'Certificate expiry date.';
-                    }
+                }
+
+                group(CertificateDetails)
+                {
+                    Caption = 'Certificate Details';
+                    Visible = Rec."Certificate Configured";
+
                     field("Certificate Issuer"; Rec."Certificate Issuer")
                     {
-                        ToolTip = 'Certificate authority that issued this certificate.';
+                        ApplicationArea = All;
                     }
+
                     field("Certificate Subject"; Rec."Certificate Subject")
                     {
-                        ToolTip = 'Certificate subject (organization details).';
+                        ApplicationArea = All;
                     }
-                    field("Certificate Valid From"; Rec."Certificate Valid From")
-                    {
-                        ToolTip = 'Certificate validity start date.';
-                    }
-                    field("Certificate Password Key"; Rec."Certificate Password Key")
-                    {
-                        ToolTip = 'Specifies the value of the Certificate Password Key field.', Comment = '%';
-                    }
+
                     field("Certificate Serial Number"; Rec."Certificate Serial Number")
                     {
-                        ToolTip = 'Unique serial number of the certificate.';
+                        ApplicationArea = All;
+                    }
+
+                    field("Certificate Valid From"; Rec."Certificate Valid From")
+                    {
+                        ApplicationArea = All;
+                    }
+
+                    field("Certificate Valid To"; Rec."Certificate Valid To")
+                    {
+                        ApplicationArea = All;
+                        Style = Unfavorable;
+                        StyleExpr = ValidStyleExpr;
+                    }
+                }
+
+                group(AzureConfiguration)
+                {
+                    Caption = 'Azure Configuration';
+
+                    field("Azure Function URL"; Rec."Azure Function URL")
+                    {
+                        ApplicationArea = All;
+                        ToolTip = 'Azure Function endpoint for certificate upload and XML signing';
                     }
                 }
 
@@ -323,6 +345,80 @@ page 70000050 "MY eInv Setup Card"
                     Message('Log viewer coming soon.');
                 end;
             }
+            action(UploadCertificate)
+            {
+                ApplicationArea = All;
+                Caption = 'Upload Certificate to Azure';
+                Image = Certificate;
+                Promoted = true;
+                PromotedCategory = Process;
+                PromotedIsBig = true;
+                ToolTip = 'Upload certificate file and send to Azure Key Vault';
+
+                trigger OnAction()
+                var
+                    CertMgmt: Codeunit "MY eInv Authentication";
+                begin
+                    CertMgmt.UploadAndSendCertificateToAzure(Rec);
+                end;
+            }
+
+            action(TestAzureConnection)
+            {
+                ApplicationArea = All;
+                Caption = 'Test Azure Connection';
+                Image = TestReport;
+                Promoted = true;
+                PromotedCategory = Process;
+                ToolTip = 'Test connection to Azure Function';
+
+                trigger OnAction()
+                var
+                    CertMgmt: Codeunit "MY eInv Authentication";
+                begin
+                    CertMgmt.TestAzureConnection(Rec);
+                end;
+            }
+
+            action(RemoveCertificate)
+            {
+                ApplicationArea = All;
+                Caption = 'Remove Certificate';
+                Image = Delete;
+                Promoted = true;
+                PromotedCategory = Process;
+                ToolTip = 'Remove certificate from Azure Key Vault';
+
+                trigger OnAction()
+                var
+                    CertMgmt: Codeunit "MY eInv Authentication";
+                begin
+                    if Confirm('Are you sure you want to remove the certificate from Azure Key Vault?', false) then
+                        CertMgmt.RemoveCertificateFromAzure(Rec);
+                end;
+            }
+            // ============================================
+            // 3. HELPER: Set Azure Function Key Action
+            // ============================================
+            // Add this action to your page
+            /*
+            action(SetAzureFunctionKey)
+            {
+                ApplicationArea = All;
+                Caption = 'Set Azure Function Key';
+                Image = Setup;
+
+                trigger OnAction()
+                var
+                    CertMgmt: Codeunit "MY eInv Authentication";
+                    FunctionKey: Text;
+                begin
+                    FunctionKey := '';
+                    if InputQuery('Azure Function Key', 'Enter your Azure Function Key:', FunctionKey) then
+                        CertMgmt.SetAzureFunctionKey(Rec, FunctionKey);
+                end;
+            }
+            */
         }
 
         area(Navigation)
@@ -375,11 +471,20 @@ page 70000050 "MY eInv Setup Card"
         end;
 
         UpdateDisplayFields();
+        ValidStyleExpr := IsExpiringSoon();
     end;
 
     trigger OnAfterGetCurrRecord()
     begin
         UpdateDisplayFields();
+        ValidStyleExpr := IsExpiringSoon();
+    end;
+
+    local procedure IsExpiringSoon(): Boolean
+    begin
+        if Rec."Certificate Valid To" = 0DT then
+            exit(false);
+        exit(Rec."Certificate Valid To" < CreateDateTime(CalcDate('<+30D>', Today), 0T));
     end;
 
     local procedure UpdateDisplayFields()
@@ -466,6 +571,7 @@ page 70000050 "MY eInv Setup Card"
     end;
 
     var
+        ValidStyleExpr: Boolean;
         ClientIDDisplay: Text;
         ClientSecretDisplay: Text;
         ShowClientID: Boolean;
