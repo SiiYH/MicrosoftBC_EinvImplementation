@@ -136,6 +136,17 @@ page 70000050 "MY eInv Setup Card"
                 {
                     ApplicationArea = All;
                 }
+                group(AzureConfiguration)
+                {
+                    Caption = 'Azure Configuration';
+
+                    field("Azure Function URL"; Rec."Azure Function URL")
+                    {
+                        ApplicationArea = All;
+                        ToolTip = 'Azure Function endpoint for certificate upload and XML signing';
+                        MultiLine = true;
+                    }
+                }
                 group(CertificateUpload)
                 {
                     Caption = 'Certificate Upload';
@@ -164,11 +175,13 @@ page 70000050 "MY eInv Setup Card"
                     field("Certificate Issuer"; Rec."Certificate Issuer")
                     {
                         ApplicationArea = All;
+                        MultiLine = true;
                     }
 
                     field("Certificate Subject"; Rec."Certificate Subject")
                     {
                         ApplicationArea = All;
+                        MultiLine = true;
                     }
 
                     field("Certificate Serial Number"; Rec."Certificate Serial Number")
@@ -189,17 +202,6 @@ page 70000050 "MY eInv Setup Card"
                     }
                 }
 
-                group(AzureConfiguration)
-                {
-                    Caption = 'Azure Configuration';
-
-                    field("Azure Function URL"; Rec."Azure Function URL")
-                    {
-                        ApplicationArea = All;
-                        ToolTip = 'Azure Function endpoint for certificate upload and XML signing';
-                    }
-                }
-
             }
 
             group(TINVerification)
@@ -212,7 +214,6 @@ page 70000050 "MY eInv Setup Card"
                     ApplicationArea = All;
                     Caption = 'Company TIN';
                     ToolTip = 'The TIN configured in Company Information.';
-                    Editable = false;
                     Style = Strong;
                     StyleExpr = true;
                 }
@@ -343,6 +344,21 @@ page 70000050 "MY eInv Setup Card"
                 trigger OnAction()
                 begin
                     Message('Log viewer coming soon.');
+                end;
+            }
+            action(SetAzureFunctionKey)
+            {
+                ApplicationArea = All;
+                Caption = 'Set Azure Function Key';
+                Image = Setup;
+                Promoted = true;
+                PromotedCategory = Process;
+
+                trigger OnAction()
+                var
+                    CertMgmt: Codeunit "MY eInv Authentication";
+                begin
+                    CertMgmt.SetAzureFunctionKey(Rec);
                 end;
             }
             action(UploadCertificate)

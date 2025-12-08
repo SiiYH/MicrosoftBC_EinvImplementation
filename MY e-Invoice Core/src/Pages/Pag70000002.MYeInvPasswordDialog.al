@@ -1,7 +1,7 @@
 page 70000002 "MY eInv Password Dialog"
 {
     PageType = Card;
-    Caption = 'Enter Certificate Password';
+    Caption = 'Enter Certificate Password / Azure Function Key';
     Editable = true;
 
     layout
@@ -12,7 +12,8 @@ page 70000002 "MY eInv Password Dialog"
             {
                 field(Password; PasswordTxt)
                 {
-                    Caption = 'Password';
+                    Caption = 'Password / Key';
+                    ApplicationArea = All;
                     ExtendedDatatype = Masked; // Masks user input
                 }
             }

@@ -229,55 +229,50 @@ codeunit 70000002 "MY eInv Authentication"
     procedure SendCertificateToAzure(var LHDNSetup: Record "MY eInv Setup"; CertBase64: Text; CertPassword: Text; FileName: Text)
     var
         Client: HttpClient;
-        RequestMsg: HttpRequestMessage;
-        ResponseMsg: HttpResponseMessage;
         Content: HttpContent;
-        Headers: HttpHeaders;
+        ContentHeaders: HttpHeaders;
+        ResponseMsg: HttpResponseMessage;
         RequestBody: Text;
         ResponseText: Text;
         AzureFunctionKey: Text;
         CompanyName: Text;
     begin
-        // Validate Azure Function URL
+        // 1. Validate Azure Function URL
         if LHDNSetup."Azure Function URL" = '' then
             Error('Azure Function URL is not configured. Please configure it first.');
 
-        // Get Azure Function Key
+        // 2. Get Azure Function Key
         AzureFunctionKey := GetAzureFunctionKey(LHDNSetup);
         if AzureFunctionKey = '' then
             Error('Azure Function Key is not configured.');
 
-        // Get company identifier for unique certificate naming
+        // 3. Get company identifier for unique certificate naming
         CompanyName := CopyStr(CompanyProperty.DisplayName(), 1, 50);
         CompanyName := DelChr(CompanyName, '=', ' '); // Remove spaces
 
-        // Build JSON request body
+        // 4. Build JSON request body
         RequestBody := BuildUploadRequestJson(CertBase64, CertPassword, FileName, CompanyName);
 
-        // Set up HTTP request
+        // 5. Set up HTTP content
         Content.WriteFrom(RequestBody);
-        Content.GetHeaders(Headers);
-        Headers.Remove('Content-Type');
-        Headers.Add('Content-Type', 'application/json');
+        Content.GetHeaders(ContentHeaders);
+        ContentHeaders.Clear(); // IMPORTANT: Clear default headers
+        ContentHeaders.Add('Content-Type', 'application/json'); // Set correct content type
 
-        // Add function key to header
+        // 6. Add function key to header
         Client.DefaultRequestHeaders.Add('x-functions-key', AzureFunctionKey);
 
-        // Send POST request to Azure Function
-        RequestMsg.Method := 'POST';
-        RequestMsg.SetRequestUri(LHDNSetup."Azure Function URL" + '/api/UploadCertificate');
-        RequestMsg.Content := Content;
-
-        if not Client.Send(RequestMsg, ResponseMsg) then
+        // 7. Send POST request to Azure Function
+        if not Client.Post(LHDNSetup."Azure Function URL" + '/api/UploadCertificate', Content, ResponseMsg) then
             Error('Failed to connect to Azure Function. Please check the URL and network connection.');
 
-        // Check response
+        // 8. Check response status
         if not ResponseMsg.IsSuccessStatusCode then begin
             ResponseMsg.Content.ReadAs(ResponseText);
             Error('Azure Function returned error: %1 - %2', ResponseMsg.HttpStatusCode, ResponseText);
         end;
 
-        // Parse successful response
+        // 9. Parse successful response
         ResponseMsg.Content.ReadAs(ResponseText);
         UpdateCertificateMetadata(LHDNSetup, ResponseText, FileName);
     end;
@@ -340,12 +335,18 @@ codeunit 70000002 "MY eInv Authentication"
         exit('');
     end;
 
-    procedure SetAzureFunctionKey(var LHDNSetup: Record "MY eInv Setup"; FunctionKey: Text)
+    procedure SetAzureFunctionKey(var LHDNSetup: Record "MY eInv Setup")
     var
+        PasswordDialog: Page "MY eInv Password Dialog";
+        FunctionKey: Text;
         KeyGuid: Guid;
     begin
+        // Reuse your password dialog page
+        PasswordDialog.RunModal();
+        FunctionKey := PasswordDialog.GetPassword();
+
         if FunctionKey = '' then
-            Error('Function key cannot be empty.');
+            exit; // User cancelled or left empty
 
         KeyGuid := CreateGuid();
         if not IsolatedStorage.Set(KeyGuid, FunctionKey, DataScope::Company) then
@@ -362,22 +363,33 @@ codeunit 70000002 "MY eInv Authentication"
         Client: HttpClient;
         ResponseMsg: HttpResponseMessage;
         AzureFunctionKey: Text;
+        HealthUrl: Text;
+        ResponseText: Text;
     begin
         if LHDNSetup."Azure Function URL" = '' then
             Error('Azure Function URL is not configured.');
 
-        AzureFunctionKey := GetAzureFunctionKey(LHDNSetup);
-        if AzureFunctionKey <> '' then
-            Client.DefaultRequestHeaders.Add('x-functions-key', AzureFunctionKey);
+        // Normalize URL (remove trailing slash)
+        HealthUrl := LHDNSetup."Azure Function URL".TrimEnd('/') + '/api/Health';
 
-        if not Client.Get(LHDNSetup."Azure Function URL" + '/api/Health', ResponseMsg) then
-            Error('Failed to connect to Azure Function.');
+        AzureFunctionKey := GetAzureFunctionKey(LHDNSetup);
+
+        if AzureFunctionKey <> '' then begin
+            if not Client.DefaultRequestHeaders.Contains('x-functions-key') then
+                Client.DefaultRequestHeaders.Add('x-functions-key', AzureFunctionKey);
+        end;
+
+        if not Client.Get(HealthUrl, ResponseMsg) then
+            Error('Failed to connect to Azure Function at %1.', HealthUrl);
+
+        ResponseMsg.Content.ReadAs(ResponseText);
 
         if ResponseMsg.IsSuccessStatusCode then
-            Message('Connection successful! Azure Function is responding.')
+            Message('Connection successful! Azure Function is responding: %1', ResponseText)
         else
-            Error('Azure Function returned error: %1', ResponseMsg.HttpStatusCode);
+            Error('Azure Function returned error %1: %2', ResponseMsg.HttpStatusCode, ResponseText);
     end;
+
 
     procedure RemoveCertificateFromAzure(var LHDNSetup: Record "MY eInv Setup")
     var
