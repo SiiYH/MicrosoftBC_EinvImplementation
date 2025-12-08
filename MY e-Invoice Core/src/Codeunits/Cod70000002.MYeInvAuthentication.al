@@ -304,6 +304,9 @@ codeunit 70000002 "MY eInv Authentication"
         LHDNSetup."Certificate Configured" := true;
 
         // Extract certificate details from response
+        if JsonObj.Get('certificateId', JsonToken) then
+            LHDNSetup."Certificate ID" := CopyStr(JsonToken.AsValue().AsText(), 1, MaxStrLen(LHDNSetup."Certificate Id"));
+
         if JsonObj.Get('issuer', JsonToken) then
             LHDNSetup."Certificate Issuer" := CopyStr(JsonToken.AsValue().AsText(), 1, MaxStrLen(LHDNSetup."Certificate Issuer"));
 

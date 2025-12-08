@@ -205,6 +205,20 @@ table 70000001 "MY eInv Setup"
         {
             Caption = 'Azure Function Key';
         }
+        field(112; "Key Vault URL"; Text[250])
+        {
+            Caption = 'Key Vault URL';
+            DataClassification = CustomerContent;
+            ToolTip = 'Specifies the Azure Key Vault URL (e.g., https://myvault.vault.azure.net)';
+        }
+
+        field(113; "Certificate ID"; Text[250])
+        {
+            Caption = 'Certificate ID';
+            DataClassification = CustomerContent;
+            ToolTip = 'Specifies the name of certificate in Key Vault';
+            Editable = false;
+        }
     }
 
     keys
