@@ -1,1 +1,1 @@
-﻿{"Added":[],"Modified":[{"Id":70000002,"Kind":11,"Name":"MY eInv Authentication","Namespace":""}],"Removed":[]}
+﻿{"Added":[],"Modified":[{"Id":70000004,"Kind":11,"Name":"MY eInv Digital Signature","Namespace":""},{"Id":70000002,"Kind":11,"Name":"MY eInv Authentication","Namespace":""},{"Id":70000001,"Kind":10,"Name":"MY eInv Setup","Namespace":""},{"Id":70000006,"Kind":11,"Name":"MY eInv Document Processor","Namespace":""}],"Removed":[]}

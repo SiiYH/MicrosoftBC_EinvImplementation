@@ -146,12 +146,6 @@ page 70000050 "MY eInv Setup Card"
                         ToolTip = 'Azure Function endpoint for certificate upload and XML signing';
                         MultiLine = true;
                     }
-                    field("Key Vault URL"; Rec."Key Vault URL")
-                    {
-                        ApplicationArea = All;
-                        ToolTip = 'Specifies the value of the Key Vault URL field.', Comment = '%';
-                        MultiLine = true;
-                    }
                 }
                 group(CertificateUpload)
                 {
@@ -211,6 +205,7 @@ page 70000050 "MY eInv Setup Card"
                         StyleExpr = ValidStyleExpr;
                     }
                 }
+                part(MYeInvCertCard; "MY eInv Certificate Card") { ApplicationArea = All; }
 
             }
 

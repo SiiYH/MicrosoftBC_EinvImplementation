@@ -205,12 +205,6 @@ table 70000001 "MY eInv Setup"
         {
             Caption = 'Azure Function Key';
         }
-        field(112; "Key Vault URL"; Text[250])
-        {
-            Caption = 'Key Vault URL';
-            DataClassification = CustomerContent;
-            ToolTip = 'Specifies the Azure Key Vault URL (e.g., https://myvault.vault.azure.net)';
-        }
 
         field(113; "Certificate ID"; Text[250])
         {
@@ -219,6 +213,13 @@ table 70000001 "MY eInv Setup"
             ToolTip = 'Specifies the name of certificate in Key Vault';
             Editable = false;
         }
+        field(114; "Signing Service URL"; Text[250])
+        {
+            Caption = 'Signing Service URL';
+            DataClassification = CustomerContent;
+            InitValue = SigningSerURL;
+        }
+
     }
 
     keys
@@ -232,6 +233,11 @@ table 70000001 "MY eInv Setup"
     trigger OnInsert()
     begin
         UpdateURLs();
+    end;
+
+    trigger OnModify()
+    begin
+        SigningSerURL := Rec."Azure Function URL" + '/api/SignDocument';
     end;
 
     local procedure UpdateURLs()
@@ -409,4 +415,7 @@ table 70000001 "MY eInv Setup"
 
         exit('');
     end;
+
+    var
+        SigningSerURL: Text;
 }

@@ -325,7 +325,7 @@ codeunit 70000002 "MY eInv Authentication"
         LHDNSetup.Modify(true);
     end;
 
-    local procedure GetAzureFunctionKey(LHDNSetup: Record "MY eInv Setup"): Text
+    procedure GetAzureFunctionKey(LHDNSetup: Record "MY eInv Setup"): Text
     var
         FunctionKey: Text;
     begin

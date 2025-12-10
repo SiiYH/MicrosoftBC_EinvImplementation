@@ -120,7 +120,7 @@ pageextension 70000052 "MY eInv Sales Invoice" extends "Sales Invoice"
                     end;
                 }
 
-                action(TestDigitalSignature)
+                /* action(TestDigitalSignature)
                 {
                     Caption = 'Test Digital Signature';
                     ApplicationArea = All;
@@ -131,7 +131,7 @@ pageextension 70000052 "MY eInv Sales Invoice" extends "Sales Invoice"
                     begin
                         TestDigitalSignature();
                     end;
-                }
+                } */
 
                 action(OpenEInvoiceSetup)
                 {
@@ -251,7 +251,7 @@ pageextension 70000052 "MY eInv Sales Invoice" extends "Sales Invoice"
         DownloadFromStream(InStream, 'Preview XML', '', 'XML Files (*.xml)|*.xml', ToFile);
     end;
 
-    local procedure TestDigitalSignature()
+    /* local procedure TestDigitalSignature()
     var
         TempSalesInvoiceHeader: Record "Sales Invoice Header" temporary;
         XMLGenerator: Codeunit "MY eInv XML Generator";
@@ -270,7 +270,7 @@ pageextension 70000052 "MY eInv Sales Invoice" extends "Sales Invoice"
         XMLText := XMLGenerator.GenerateInvoiceXML(TempSalesInvoiceHeader);
         Setup.Get();
         DigitalSignature.TestCertificate(Setup, XMLText);
-    end;
+    end; */
 
     local procedure UpdateSubmitStatus()
     var

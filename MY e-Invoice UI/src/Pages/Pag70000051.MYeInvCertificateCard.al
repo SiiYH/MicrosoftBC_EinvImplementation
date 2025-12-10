@@ -159,7 +159,7 @@ page 70000051 "MY eInv Certificate Card"
                 end;
             }
 
-            action(TestCertificate)
+            /* action(TestCertificate)
             {
                 ApplicationArea = All;
                 Caption = 'Test Certificate';
@@ -187,7 +187,7 @@ page 70000051 "MY eInv Certificate Card"
                     else
                         Error('Certificate test failed. Please check the certificate and try again.');
                 end;
-            }
+            } */
 
             action(RemoveCertificate_)
             {
