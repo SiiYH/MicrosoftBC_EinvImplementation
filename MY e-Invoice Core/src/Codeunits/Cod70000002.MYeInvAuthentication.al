@@ -263,7 +263,7 @@ codeunit 70000002 "MY eInv Authentication"
         Client.DefaultRequestHeaders.Add('x-functions-key', AzureFunctionKey);
 
         // 7. Send POST request to Azure Function
-        if not Client.Post(LHDNSetup."Azure Function URL" + '/api/UploadCertificate', Content, ResponseMsg) then
+        if not Client.Post(LHDNSetup."Azure Function URL".TrimEnd('/') + '/api/UploadCertificate', Content, ResponseMsg) then
             Error('Failed to connect to Azure Function. Please check the URL and network connection.');
 
         // 8. Check response status

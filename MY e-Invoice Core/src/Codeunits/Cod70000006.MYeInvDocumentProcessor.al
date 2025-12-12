@@ -52,7 +52,7 @@ codeunit 70000006 "MY eInv Document Processor"
         // Step 2: Sign if needed (version 1.1 requires signature)
         if Setup."Document Version" = Setup."Document Version"::"1.1" then begin
             // Validate signing configuration
-            if Setup."Signing Service URL" = '' then
+            if Setup."Azure Function URL" = '' then
                 Error('Signing Service URL is not configured. Please configure in MY eInv Setup.');
 
             AzureFunctionKey := eInvAuth.GetAzureFunctionKey(Setup);

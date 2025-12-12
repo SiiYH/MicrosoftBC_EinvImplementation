@@ -5,6 +5,256 @@
 
 codeunit 70000005 "MY eInv Azure Signer"
 {
+    var
+        DiagnosticResultMsg: Label 'Diagnostic Results:\%1';
+
+    /// <summary>
+    /// Diagnostic of Azure Function
+    /// </summary>
+    /// <param name="Setup"></param>
+    /// <returns></returns>
+    procedure RunFullDiagnostic(Setup: Record "MY eInv Setup"): Text
+    var
+        Results: Text;
+    begin
+        Results := '═══ DIGITAL SIGNATURE DIAGNOSTICS ═══\\';
+        Results += CheckConfiguration(Setup);
+        Results += CheckCertificateSetup(Setup);
+        Results += CheckNetworkConnectivity(Setup);
+        Results += TestMinimalRequest(Setup);
+        Results += '\═══════════════════════════════════';
+
+        Message(DiagnosticResultMsg, Results);
+        exit(Results);
+    end;
+
+    local procedure CheckConfiguration(Setup: Record "MY eInv Setup"): Text
+    var
+        Result: Text;
+    begin
+        Result := '1. CONFIGURATION CHECK\';
+
+        if Setup."Azure Function URL" = '' then
+            Result += '   ✗ Azure Function URL: NOT SET\'
+        else
+            Result += '   ✓ Azure Function URL: ' + CopyStr(Setup."Azure Function URL", 1, 50) + '...\';
+
+        if Setup.GetAzureFunctionKey() = '' then
+            Result += '   ✗ Signing Service Key: NOT SET\'
+        else
+            Result += '   ✓ Signing Service Key: SET (length: ' + Format(StrLen(Setup.GetAzureFunctionKey())) + ')\';
+
+        // if Setup."Certificate Source" = Setup."Certificate Source"::"Key Vault" then begin
+        Result += '   • Certificate Source: Key Vault\';
+        if Setup."Certificate ID" = '' then
+            Result += '   ✗ Company Certificate Name: NOT SET\'
+        else
+            Result += '   ✓ Company Certificate Name: ' + Setup."Certificate ID" + '\';
+        /* end else begin
+            Result += '   • Certificate Source: Base64 (Legacy)\';
+            Setup.CalcFields("Certificate Base64");
+            if Setup."Certificate Base64".HasValue then
+                Result += '   ✓ Certificate Base64: Uploaded\'
+            else
+                Result += '   ✗ Certificate Base64: NOT UPLOADED\';
+        end; */
+
+        exit(Result + '\');
+    end;
+
+    local procedure CheckCertificateSetup(Setup: Record "MY eInv Setup"): Text
+    var
+        Result: Text;
+    begin
+        Result := '2. CERTIFICATE SETUP\';
+
+        // if Setup."Certificate Source" = Setup."Certificate Source"::"Key Vault" then begin
+        Result += '   Expected in Azure:\';
+        Result += '   • Key Vault: [From Function App config]\';
+        Result += '   • Certificate Name: ' + Setup."Certificate ID" + '\';
+        Result += '   Note: Verify in Azure Portal that:\';
+        Result += '     1. Certificate exists in Key Vault\';
+        Result += '     2. Function App has Get/List permissions\';
+        Result += '     3. Function App Managed Identity is enabled\';
+        /* end else begin
+            Setup.CalcFields("Certificate Base64");
+            if Setup."Certificate Base64".HasValue then begin
+                Result += '   ✓ Certificate uploaded to BC\';
+                if Setup."Certificate Password" <> '' then
+                    Result += '   ✓ Password provided\';
+            end;
+        end; */
+
+        exit(Result + '\');
+    end;
+
+    local procedure CheckNetworkConnectivity(Setup: Record "MY eInv Setup"): Text
+    var
+        Client: HttpClient;
+        Response: HttpResponseMessage;
+        Result: Text;
+        TestUrl: Text;
+    begin
+        Result := '3. NETWORK CONNECTIVITY\';
+
+        // Test basic connectivity to Azure
+        TestUrl := CopyStr(Setup."Azure Function URL", 1, StrPos(Setup."Azure Function URL", '/api'));
+        if TestUrl = '' then
+            TestUrl := Setup."Azure Function URL";
+
+        Client.Timeout := 5000;
+        if Client.Get(TestUrl, Response) then
+            Result += '   ✓ Can reach: ' + TestUrl + '\'
+        else
+            Result += '   ✗ Cannot reach: ' + TestUrl + '\';
+
+        exit(Result + '\');
+    end;
+
+    local procedure TestMinimalRequest(Setup: Record "MY eInv Setup"): Text
+    var
+        Client: HttpClient;
+        RequestMessage: HttpRequestMessage;
+        ResponseMessage: HttpResponseMessage;
+        Content: HttpContent;
+        Headers: HttpHeaders;
+        RequestBody: Text;
+        ResponseBody: Text;
+        Result: Text;
+        JRequest: JsonObject;
+    begin
+        Result := '4. TEST REQUEST\';
+
+        // Create minimal test request
+        JRequest.Add('DocumentXml', '<?xml version="1.0"?><Test>Diagnostic</Test>');
+
+        // if Setup."Certificate Source" = Setup."Certificate Source"::"Key Vault" then
+        JRequest.Add('CertificateName', Setup."Certificate ID");
+        /* else begin
+            // For Base64, would need to add certificate data
+            Result += '   • Using Base64 certificate from setup\';
+        end; */
+
+        JRequest.Add('UseXAdES', true);
+        JRequest.WriteTo(RequestBody);
+
+        // Setup request
+        Content.WriteFrom(RequestBody);
+        Content.GetHeaders(Headers);
+        Headers.Clear();
+        Headers.Add('Content-Type', 'application/json');
+
+        RequestMessage.Method := 'POST';
+        RequestMessage.SetRequestUri(Setup."Azure Function URL");
+        RequestMessage.Content := Content;
+
+        RequestMessage.GetHeaders(Headers);
+        Headers.Add('x-functions-key', Setup.GetAzureFunctionKey());
+
+        Client.Timeout := 30000;
+
+        // Send request
+        if Client.Send(RequestMessage, ResponseMessage) then begin
+            ResponseMessage.Content.ReadAs(ResponseBody);
+            Result += '   HTTP Status: ' + Format(ResponseMessage.HttpStatusCode) + '\';
+            Result += '   Response Length: ' + Format(StrLen(ResponseBody)) + ' chars\';
+
+            if ResponseMessage.IsSuccessStatusCode then begin
+                Result += '   ✓ Request successful\';
+            end else begin
+                Result += '   ✗ Request failed\';
+                Result += '   Error: ' + CopyStr(ResponseBody, 1, 200) + '\';
+            end;
+        end else begin
+            Result += '   ✗ Request timeout or network error\';
+        end;
+
+        exit(Result + '\');
+    end;
+
+    procedure GetDetailedError(Setup: Record "MY eInv Setup"; DocumentXML: Text): Text
+    var
+        Client: HttpClient;
+        RequestMessage: HttpRequestMessage;
+        ResponseMessage: HttpResponseMessage;
+        Content: HttpContent;
+        Headers: HttpHeaders;
+        RequestBody: Text;
+        ResponseBody: Text;
+        JRequest: JsonObject;
+        JResponse: JsonObject;
+        JToken: JsonToken;
+        ErrorDetails: Text;
+    begin
+        // Build full request
+        JRequest.Add('DocumentXml', DocumentXML);
+
+        // if Setup."Certificate Source" = Setup."Certificate Source"::"Key Vault" then begin
+        if Setup."Certificate ID" <> '' then
+            JRequest.Add('CertificateName', Setup."Certificate ID");
+        /* end else begin
+            Setup.CalcFields("Certificate Base64");
+            if Setup."Certificate Base64".HasValue then begin
+                // Add Base64 certificate
+                // Note: This needs to be implemented based on how you store it
+                Message('Base64 certificate mode - ensure certificate is properly encoded');
+            end;
+        end; */
+
+        JRequest.Add('UseXAdES', true);
+        JRequest.WriteTo(RequestBody);
+
+        // Setup request
+        Content.WriteFrom(RequestBody);
+        Content.GetHeaders(Headers);
+        Headers.Clear();
+        Headers.Add('Content-Type', 'application/json');
+
+        RequestMessage.Method := 'POST';
+        RequestMessage.SetRequestUri(Setup."Azure Function URL");
+        RequestMessage.Content := Content;
+
+        RequestMessage.GetHeaders(Headers);
+        Headers.Add('x-functions-key', Setup.GetAzureFunctionKey());
+        Headers.Add('X-Company-Name', Setup."Certificate ID");
+
+        Client.Timeout := 30000;
+
+        // Send and analyze response
+        if Client.Send(RequestMessage, ResponseMessage) then begin
+            ResponseMessage.Content.ReadAs(ResponseBody);
+
+            ErrorDetails := 'HTTP Status: ' + Format(ResponseMessage.HttpStatusCode) + '\';
+            ErrorDetails += 'Response: ' + ResponseBody + '\';
+
+            // Try to parse JSON error
+            if JResponse.ReadFrom(ResponseBody) then begin
+                if JResponse.Get('ErrorMessage', JToken) then
+                    ErrorDetails += 'Error Message: ' + JToken.AsValue().AsText();
+
+                if JResponse.Get('error', JToken) then
+                    ErrorDetails += 'Error: ' + JToken.AsValue().AsText();
+            end;
+        end else begin
+            ErrorDetails := 'Connection failed - timeout or network error';
+        end;
+
+        exit(ErrorDetails);
+    end;
+
+    procedure ExportRequestForDebug(Setup: Record "MY eInv Setup"; DocumentXML: Text): Text
+    var
+        JRequest: JsonObject;
+        RequestBody: Text;
+    begin
+        JRequest.Add('DocumentXml', CopyStr(DocumentXML, 1, 500) + '...');
+        JRequest.Add('CertificateName', Setup."Certificate ID");
+        JRequest.Add('UseXAdES', true);
+        JRequest.WriteTo(RequestBody);
+
+        exit(RequestBody);
+    end;
+
     procedure SignViaAzureFunction(DocumentXML: Text; Setup: Record "MY eInv Setup"): Text
     var
         Client: HttpClient;

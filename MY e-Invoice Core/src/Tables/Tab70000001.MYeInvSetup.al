@@ -199,6 +199,13 @@ table 70000001 "MY eInv Setup"
         {
             Caption = 'Azure Function URL';
             ToolTip = 'URL of your Azure Function for document signing (e.g., https://your-app.azurewebsites.net/api/SignDocument)';
+            trigger OnValidate()
+            begin
+                if "Azure Function URL" <> '' then begin
+                    if not "Azure Function URL".StartsWith('https://') then
+                        Error('Signing Service URL must start with https://');
+                end;
+            end;
         }
 
         field(111; "Azure Function Key"; Guid)
@@ -213,12 +220,12 @@ table 70000001 "MY eInv Setup"
             ToolTip = 'Specifies the name of certificate in Key Vault';
             Editable = false;
         }
-        field(114; "Signing Service URL"; Text[250])
+        /* field(114; "Signing Service URL"; Text[250])
         {
             Caption = 'Signing Service URL';
             DataClassification = CustomerContent;
             InitValue = SigningSerURL;
-        }
+        } */
 
     }
 

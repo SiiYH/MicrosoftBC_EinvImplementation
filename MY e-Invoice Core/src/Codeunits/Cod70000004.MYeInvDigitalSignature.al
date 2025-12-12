@@ -35,7 +35,7 @@ codeunit 70000004 "MY eInv Digital Signature"
             exit(false);
         end;
 
-        Setup.TestField("Signing Service URL");
+        Setup.TestField("Azure Function URL");
         AzureFunctionKey := eInvAuth.GetAzureFunctionKey(Setup);
         if AzureFunctionKey = '' then
             Error('Azure Function Key is not configured.');
@@ -50,7 +50,7 @@ codeunit 70000004 "MY eInv Digital Signature"
         Headers.Add('Content-Type', 'application/json');
 
         RequestMessage.Method := 'POST';
-        RequestMessage.SetRequestUri(Setup."Signing Service URL");
+        RequestMessage.SetRequestUri(Setup."Azure Function URL".TrimEnd('/') + '/api/SignDocument');
         RequestMessage.Content := Content;
 
         // Add authentication header
@@ -200,7 +200,7 @@ codeunit 70000004 "MY eInv Digital Signature"
                 CopyStr(ResponseBody, 1, 250));
     end;
 
-    procedure TestConnection(Setup: Record "MY eInv Setup") TestResult: Text
+    /* procedure TestConnection(Setup: Record "MY eInv Setup") TestResult: Text
     var
         eInvAuth: Codeunit "MY eInv Authentication";
         Client: HttpClient;
@@ -233,5 +233,5 @@ codeunit 70000004 "MY eInv Digital Signature"
             exit('Connection successful')
         else
             exit(StrSubstNo('Connection failed with HTTP %1', ResponseMessage.HttpStatusCode));
-    end;
+    end; */
 }

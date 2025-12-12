@@ -147,64 +147,64 @@ page 70000050 "MY eInv Setup Card"
                         MultiLine = true;
                     }
                 }
-                group(CertificateUpload)
-                {
-                    Caption = 'Certificate Upload';
+                /*                 group(CertificateUpload)
+                                {
+                                    Caption = 'Certificate Upload';
 
-                    field("Certificate File Name"; Rec."Certificate File Name")
-                    {
-                        ApplicationArea = All;
-                        ToolTip = 'Name of the uploaded certificate file';
-                        Editable = false;
-                    }
+                                    field("Certificate File Name"; Rec."Certificate File Name")
+                                    {
+                                        ApplicationArea = All;
+                                        ToolTip = 'Name of the uploaded certificate file';
+                                        Editable = false;
+                                    }
 
-                    field("Certificate Configured"; Rec."Certificate Configured")
-                    {
-                        ApplicationArea = All;
-                        ToolTip = 'Indicates if certificate is uploaded to Azure Key Vault';
-                        Style = Favorable;
-                        StyleExpr = Rec."Certificate Configured";
-                    }
-                }
+                                    field("Certificate Configured"; Rec."Certificate Configured")
+                                    {
+                                        ApplicationArea = All;
+                                        ToolTip = 'Indicates if certificate is uploaded to Azure Key Vault';
+                                        Style = Favorable;
+                                        StyleExpr = Rec."Certificate Configured";
+                                    }
+                                }
 
-                group(CertificateDetails)
-                {
-                    Caption = 'Certificate Details';
-                    Visible = Rec."Certificate Configured";
-                    field("Certificate ID"; Rec."Certificate ID")
-                    {
-                        ToolTip = 'Specifies the value of the Certificate ID field.', Comment = '%';
-                    }
+                                group(CertificateDetails)
+                                {
+                                    Caption = 'Certificate Details';
+                                    Visible = Rec."Certificate Configured";
+                                    field("Certificate ID"; Rec."Certificate ID")
+                                    {
+                                        ToolTip = 'Specifies the value of the Certificate ID field.', Comment = '%';
+                                    }
 
-                    field("Certificate Issuer"; Rec."Certificate Issuer")
-                    {
-                        ApplicationArea = All;
-                        MultiLine = true;
-                    }
+                                    field("Certificate Issuer"; Rec."Certificate Issuer")
+                                    {
+                                        ApplicationArea = All;
+                                        MultiLine = true;
+                                    }
 
-                    field("Certificate Subject"; Rec."Certificate Subject")
-                    {
-                        ApplicationArea = All;
-                        MultiLine = true;
-                    }
+                                    field("Certificate Subject"; Rec."Certificate Subject")
+                                    {
+                                        ApplicationArea = All;
+                                        MultiLine = true;
+                                    }
 
-                    field("Certificate Serial Number"; Rec."Certificate Serial Number")
-                    {
-                        ApplicationArea = All;
-                    }
+                                    field("Certificate Serial Number"; Rec."Certificate Serial Number")
+                                    {
+                                        ApplicationArea = All;
+                                    }
 
-                    field("Certificate Valid From"; Rec."Certificate Valid From")
-                    {
-                        ApplicationArea = All;
-                    }
+                                    field("Certificate Valid From"; Rec."Certificate Valid From")
+                                    {
+                                        ApplicationArea = All;
+                                    }
 
-                    field("Certificate Valid To"; Rec."Certificate Valid To")
-                    {
-                        ApplicationArea = All;
-                        Style = Unfavorable;
-                        StyleExpr = ValidStyleExpr;
-                    }
-                }
+                                    field("Certificate Valid To"; Rec."Certificate Valid To")
+                                    {
+                                        ApplicationArea = All;
+                                        Style = Unfavorable;
+                                        StyleExpr = ValidStyleExpr;
+                                    }
+                                } */
                 part(MYeInvCertCard; "MY eInv Certificate Card") { ApplicationArea = All; }
 
             }
