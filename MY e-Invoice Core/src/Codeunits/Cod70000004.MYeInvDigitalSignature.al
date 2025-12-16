@@ -4,7 +4,10 @@ codeunit 70000004 "MY eInv Digital Signature"
         SigningFailedErr: Label 'Document signing failed: %1';
         InvalidResponseErr: Label 'Invalid response from signing service';
         EmptyXMLErr: Label 'Document XML cannot be empty';
-        TimeoutErr: Label 'Signing service request timed out';
+        TimeoutErr: Label 'Signing service request timed out. Please check your internet connection and Azure Function status.';
+        NoCertificateErr: Label 'Certificate ID is not configured. Please configure it in MY eInv Setup.';
+        NoFunctionKeyErr: Label 'Azure Function Key is not configured. Please configure it in MY eInv Setup.';
+        InvalidURLErr: Label 'Azure Function URL is not valid. It must start with https://';
 
     procedure SignDocument(DocumentXML: Text; Setup: Record "MY eInv Setup") SignedXML: Text
     var
@@ -16,7 +19,6 @@ codeunit 70000004 "MY eInv Digital Signature"
 
     procedure SignDocumentWithError(DocumentXML: Text; Setup: Record "MY eInv Setup"; var SignedXML: Text; var ErrorMessage: Text): Boolean
     var
-        eInvAuth: Codeunit "MY eInv Authentication";
         Client: HttpClient;
         RequestMessage: HttpRequestMessage;
         ResponseMessage: HttpResponseMessage;
@@ -24,9 +26,7 @@ codeunit 70000004 "MY eInv Digital Signature"
         Headers: HttpHeaders;
         RequestBody: Text;
         ResponseBody: Text;
-        AzureFunctionKey: Text;
-        JResponse: JsonObject;
-        JToken: JsonToken;
+        SigningURL: Text;
         StatusCode: Integer;
     begin
         // Validate input
@@ -35,10 +35,15 @@ codeunit 70000004 "MY eInv Digital Signature"
             exit(false);
         end;
 
-        Setup.TestField("Azure Function URL");
-        AzureFunctionKey := eInvAuth.GetAzureFunctionKey(Setup);
-        if AzureFunctionKey = '' then
-            Error('Azure Function Key is not configured.');
+        // Validate setup
+        if not ValidateSetup(Setup, ErrorMessage) then
+            exit(false);
+
+        // Build full signing URL
+        SigningURL := Setup."Azure Function URL";
+        if not SigningURL.EndsWith('/') then
+            SigningURL += '/';
+        SigningURL += 'api/SignDocument';
 
         // Build request body
         RequestBody := BuildSigningRequest(DocumentXML, Setup);
@@ -50,17 +55,17 @@ codeunit 70000004 "MY eInv Digital Signature"
         Headers.Add('Content-Type', 'application/json');
 
         RequestMessage.Method := 'POST';
-        RequestMessage.SetRequestUri(Setup."Azure Function URL".TrimEnd('/') + '/api/SignDocument');
+        RequestMessage.SetRequestUri(SigningURL);
         RequestMessage.Content := Content;
 
         // Add authentication header
         RequestMessage.GetHeaders(Headers);
-        Headers.Add('x-functions-key', AzureFunctionKey);
+        Headers.Add('x-functions-key', Setup.GetAzureFunctionKey());
 
         // Add custom headers for logging/tracking
         if Setup."Certificate ID" <> '' then
-            Headers.Add('X-Company-Name', Setup."Certificate ID");
-        Headers.Add('X-Customer-Id', CopyStr(CompanyName(), 1, 50));
+            Headers.Add('X-Certificate-ID', CopyStr(Setup."Certificate ID", 1, 50));
+        Headers.Add('X-Company-Name', CopyStr(CompanyName(), 1, 50));
 
         // Set timeout (30 seconds)
         Client.Timeout := 30000;
@@ -68,6 +73,7 @@ codeunit 70000004 "MY eInv Digital Signature"
         // Send request
         if not Client.Send(RequestMessage, ResponseMessage) then begin
             ErrorMessage := TimeoutErr;
+            LogSigningAttempt(0, 'Timeout', Setup);
             exit(false);
         end;
 
@@ -91,32 +97,42 @@ codeunit 70000004 "MY eInv Digital Signature"
         exit(true);
     end;
 
+    local procedure ValidateSetup(Setup: Record "MY eInv Setup"; var ErrorMessage: Text): Boolean
+    begin
+        if Setup."Azure Function URL" = '' then begin
+            ErrorMessage := 'Azure Function URL is not configured';
+            exit(false);
+        end;
+
+        if not Setup."Azure Function URL".StartsWith('https://') then begin
+            ErrorMessage := InvalidURLErr;
+            exit(false);
+        end;
+
+        if Setup."Certificate ID" = '' then begin
+            ErrorMessage := NoCertificateErr;
+            exit(false);
+        end;
+
+        if Setup.GetAzureFunctionKey() = '' then begin
+            ErrorMessage := NoFunctionKeyErr;
+            exit(false);
+        end;
+
+        exit(true);
+    end;
+
     local procedure BuildSigningRequest(DocumentXML: Text; Setup: Record "MY eInv Setup") RequestBody: Text
     var
         JRequest: JsonObject;
     begin
         JRequest.Add('DocumentXml', DocumentXML);
 
-        // Choose certificate source
-        /* case Setup."Certificate Source" of
-            Setup."Certificate Source"::"Key Vault":
-                begin */
         // Use certificate from Azure Key Vault
         if Setup."Certificate ID" <> '' then
             JRequest.Add('CertificateName', Setup."Certificate ID");
+
         JRequest.Add('UseXAdES', true); // Always use XAdES for LHDN
-                                        /* end;
-                                    Setup."Certificate Source"::"Base64":
-                                        begin
-                                            // Legacy: Use certificate from setup (if stored)
-                                            if Setup."Certificate Base64" <> '' then begin
-                                                JRequest.Add('CertificateBase64', Setup."Certificate Base64");
-                                                if Setup."Certificate Password" <> '' then
-                                                    JRequest.Add('CertificatePassword', Setup."Certificate Password");
-                                            end;
-                                            JRequest.Add('UseXAdES', true);
-                                        end;
-                                end; */
 
         JRequest.WriteTo(RequestBody);
     end;
@@ -169,6 +185,8 @@ codeunit 70000004 "MY eInv Digital Signature"
             if JResponse.Get('ErrorMessage', JToken) then
                 ErrorMessage += ': ' + JToken.AsValue().AsText()
             else if JResponse.Get('error', JToken) then
+                ErrorMessage += ': ' + JToken.AsValue().AsText()
+            else if JResponse.Get('message', JToken) then
                 ErrorMessage += ': ' + JToken.AsValue().AsText();
         end else begin
             // If response is plain text
@@ -200,38 +218,98 @@ codeunit 70000004 "MY eInv Digital Signature"
                 CopyStr(ResponseBody, 1, 250));
     end;
 
-    /* procedure TestConnection(Setup: Record "MY eInv Setup") TestResult: Text
+    procedure TestConnection(Setup: Record "MY eInv Setup") TestResult: Text
     var
-        eInvAuth: Codeunit "MY eInv Authentication";
         Client: HttpClient;
-        RequestMessage: HttpRequestMessage;
         ResponseMessage: HttpResponseMessage;
-        Headers: HttpHeaders;
-        TestXML: Text;
-        AzureFunctionKey: Text;
+        HealthURL: Text;
+        ErrorMessage: Text;
     begin
-        AzureFunctionKey := eInvAuth.GetAzureFunctionKey(Setup);
-        if AzureFunctionKey = '' then
-            Error('Azure Function Key is not configured.');
+        // Validate setup first
+        if not ValidateSetup(Setup, ErrorMessage) then
+            exit('Configuration Error: ' + ErrorMessage);
 
-        // Simple test XML
-        TestXML := '<?xml version="1.0" encoding="UTF-8"?><Test>Connection Test</Test>';
+        // Build Health endpoint URL
+        HealthURL := Setup."Azure Function URL";
+        if not HealthURL.EndsWith('/') then
+            HealthURL += '/';
+        HealthURL += 'api/Health';
 
-        Setup.TestField("Signing Service URL");
-
-        RequestMessage.Method := 'POST';
-        RequestMessage.SetRequestUri(Setup."Signing Service URL");
-        RequestMessage.GetHeaders(Headers);
-        Headers.Add('x-functions-key', AzureFunctionKey);
-
+        // Add function key
+        Client.DefaultRequestHeaders.Add('x-functions-key', Setup.GetAzureFunctionKey());
         Client.Timeout := 10000; // 10 seconds for test
 
-        if not Client.Send(RequestMessage, ResponseMessage) then
+        if not Client.Get(HealthURL, ResponseMessage) then
             exit('Connection failed: Timeout or network error');
 
         if ResponseMessage.IsSuccessStatusCode then
-            exit('Connection successful')
+            exit('✓ Connection successful (HTTP 200)')
         else
-            exit(StrSubstNo('Connection failed with HTTP %1', ResponseMessage.HttpStatusCode));
-    end; */
+            exit(StrSubstNo('✗ Connection failed with HTTP %1', ResponseMessage.HttpStatusCode));
+    end;
+
+    procedure ExportXMLWithSigning(DocumentXML: Text; Setup: Record "MY eInv Setup"; FileName: Text)
+    var
+        SignedXML: Text;
+        ErrorMessage: Text;
+        TempBlob: Codeunit "Temp Blob";
+        OutStr: OutStream;
+        InStr: InStream;
+        ActualFileName: Text;
+    begin
+        // Sign the document
+        if not SignDocumentWithError(DocumentXML, Setup, SignedXML, ErrorMessage) then
+            Error('Failed to sign document: %1', ErrorMessage);
+
+        // Create file name if not provided
+        if FileName = '' then
+            FileName := 'signed-' + Format(CurrentDateTime, 0, '<Year4><Month,2><Day,2>-<Hours24><Minutes,2><Seconds,2>') + '.xml';
+
+        // Write to temp blob
+        TempBlob.CreateOutStream(OutStr, TextEncoding::UTF8);
+
+        // Only add XML declaration if not already present
+        if not SignedXML.StartsWith('<?xml') then
+            OutStr.WriteText('<?xml version="1.0" encoding="UTF-8"?>');
+
+        OutStr.WriteText(SignedXML);
+
+        // Download file
+        TempBlob.CreateInStream(InStr, TextEncoding::UTF8);
+        DownloadFromStream(InStr, 'Export Signed XML', '', 'XML Files (*.xml)|*.xml', ActualFileName);
+
+        Message('Signed XML exported successfully');
+    end;
+
+    procedure ExportXMLWithoutSigning(DocumentXML: Text; FileName: Text)
+    var
+        TempBlob: Codeunit "Temp Blob";
+        OutStr: OutStream;
+        InStr: InStream;
+        ActualFileName: Text;
+    begin
+        // Create file name if not provided
+        if FileName = '' then
+            FileName := 'unsigned-' + Format(CurrentDateTime, 0, '<Year4><Month,2><Day,2>-<Hours24><Minutes,2><Seconds,2>') + '.xml';
+
+        // Write to temp blob
+        TempBlob.CreateOutStream(OutStr, TextEncoding::UTF8);
+
+        // Only add XML declaration if not already present
+        if not DocumentXML.StartsWith('<?xml') then
+            OutStr.WriteText('<?xml version="1.0" encoding="UTF-8"?>');
+
+        OutStr.WriteText(DocumentXML);
+
+        // Download file
+        TempBlob.CreateInStream(InStr, TextEncoding::UTF8);
+        DownloadFromStream(InStr, 'Export XML', '', 'XML Files (*.xml)|*.xml', ActualFileName);
+
+        Message('XML exported successfully');
+    end;
+
+    procedure GetLastError(): Text
+    begin
+        exit(GetLastErrorText());
+    end;
 }

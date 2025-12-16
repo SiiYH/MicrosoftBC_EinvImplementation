@@ -160,6 +160,32 @@ pageextension 70000053 "MY eInv Posted Sales Invoice" extends "Posted Sales Invo
                     end;
                 }
 
+                action(ExportSignedXML)
+                {
+                    Caption = 'Export Signed XML';
+                    ApplicationArea = All;
+                    Image = ExportFile;
+                    trigger OnAction()
+                    var
+                        DigitalSignature: Codeunit "MY eInv Digital Signature";
+                        XMLGenerator: Codeunit "MY eInv XML Generator";
+                        LHDNSetup: Record "MY eInv Setup";
+                        SalesInvoiceHeader: Record "Sales Invoice Header";
+                        XMLText: Text;
+                        FileName: Text;
+
+                    begin
+                        SalesInvoiceHeader := Rec;
+
+                        // Generate XML
+                        XMLText := XMLGenerator.GenerateInvoiceXML(SalesInvoiceHeader);
+                        FileName := 'SignedXML' + Format(Today()) + Format(Time());
+
+                        LHDNSetup.Get();
+                        DigitalSignature.ExportXMLWithSigning(XMLText, LHDNSetup, '');
+                    end;
+                }
+
                 action(SubmitToMyInvois)
                 {
                     Caption = 'Submit to MyInvois';

@@ -104,7 +104,7 @@ codeunit 70000007 "MY eInv XML Generator"
         AddElement(RootElement, 'cbc:IssueTime', IssueTimeText);
 
         // Invoice type code with version attribute
-        AddElementWithAttribute(RootElement, 'cbc:InvoiceTypeCode', '01', 'listVersionID', '1.0');
+        AddElementWithAttribute(RootElement, 'cbc:InvoiceTypeCode', '01', 'listVersionID', GetInvoiceVersion());
 
         AddDocumentCurrencyCode(RootElement, SalesInvoiceHeader."Currency Code");
         // AddElement(RootElement, 'cbc:TaxCurrencyCode', GetCurrencyCode(SalesInvoiceHeader."Currency Code"));
@@ -195,6 +195,20 @@ codeunit 70000007 "MY eInv XML Generator"
         RootElement.Add(XmlAttribute.CreateNamespaceDeclaration('cac', 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2'));
         RootElement.Add(XmlAttribute.CreateNamespaceDeclaration('cbc', 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2'));
         exit(RootElement);
+    end;
+
+    procedure GetInvoiceVersion(): Text
+    var
+        eInvSetup: Record "MY eInv Setup";
+    begin
+        if eInvSetup.Get() then
+            case
+                eInvSetup."Document Version" of
+                eInvSetup."Document Version"::"1.0":
+                    exit('1.0');
+                else
+                    exit('1.1');
+            end;
     end;
 
     local procedure GetCurrencyCode(CurrencyCode: Code[10]): Code[10]
