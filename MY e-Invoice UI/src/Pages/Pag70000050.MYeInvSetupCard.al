@@ -205,9 +205,10 @@ page 70000050 "MY eInv Setup Card"
                                         StyleExpr = ValidStyleExpr;
                                     }
                                 } */
-                part(MYeInvCertCard; "MY eInv Certificate Card") { ApplicationArea = All; }
-
             }
+
+            part(MYeInvCertCard; "MY eInv Certificate Card") { ApplicationArea = All; }
+
 
             group(TINVerification)
             {
