@@ -54,6 +54,15 @@ page 70000051 "MY eInv Certificate Card"
                     StyleExpr = CertificateStatusStyle;
                     ToolTip = 'Current status of digital certificate configuration.';
                 }
+                field("Certificate ID"; Rec."Certificate ID")
+                {
+                    ApplicationArea = All;
+                    Caption = 'Certificate ID';
+                    Editable = false;
+                    Style = StrongAccent;
+                    StyleExpr = CertificateStatusStyle;
+                    ToolTip = 'Specifies the value of the Certificate Name.', Comment = '%';
+                }
 
                 field("Certificate File Name"; Rec."Certificate File Name")
                 {

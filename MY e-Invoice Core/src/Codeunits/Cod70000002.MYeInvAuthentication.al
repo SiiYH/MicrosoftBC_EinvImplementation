@@ -242,7 +242,7 @@ codeunit 70000002 "MY eInv Authentication"
             Error('Azure Function URL is not configured. Please configure it first.');
 
         // 2. Get Azure Function Key
-        AzureFunctionKey := GetAzureFunctionKey(LHDNSetup);
+        AzureFunctionKey := LHDNSetup.GetAzureFunctionKey();
         if AzureFunctionKey = '' then
             Error('Azure Function Key is not configured.');
 
@@ -325,18 +325,18 @@ codeunit 70000002 "MY eInv Authentication"
         LHDNSetup.Modify(true);
     end;
 
-    procedure GetAzureFunctionKey(LHDNSetup: Record "MY eInv Setup"): Text
-    var
-        FunctionKey: Text;
-    begin
-        if IsNullGuid(LHDNSetup."Azure Function Key") then
-            exit('');
+    /*  procedure GetAzureFunctionKey(LHDNSetup: Record "MY eInv Setup"): Text
+     var
+         FunctionKey: Text;
+     begin
+         if IsNullGuid(LHDNSetup."Azure Function Key") then
+             exit('');
 
-        if IsolatedStorage.Get(LHDNSetup."Azure Function Key", DataScope::Company, FunctionKey) then
-            exit(FunctionKey);
+         if IsolatedStorage.Get(LHDNSetup."Azure Function Key", DataScope::Company, FunctionKey) then
+             exit(FunctionKey);
 
-        exit('');
-    end;
+         exit('');
+     end; */
 
     procedure SetAzureFunctionKey(var LHDNSetup: Record "MY eInv Setup")
     var
@@ -375,7 +375,7 @@ codeunit 70000002 "MY eInv Authentication"
         // Normalize URL (remove trailing slash)
         HealthUrl := LHDNSetup."Azure Function URL".TrimEnd('/') + '/api/Health';
 
-        AzureFunctionKey := GetAzureFunctionKey(LHDNSetup);
+        AzureFunctionKey := LHDNSetup.GetAzureFunctionKey();
 
         if AzureFunctionKey <> '' then begin
             if not Client.DefaultRequestHeaders.Contains('x-functions-key') then
@@ -400,40 +400,104 @@ codeunit 70000002 "MY eInv Authentication"
         RequestMsg: HttpRequestMessage;
         ResponseMsg: HttpResponseMessage;
         Content: HttpContent;
+        Headers: HttpHeaders;
         RequestBody: Text;
+        ResponseText: Text;
         JsonObj: JsonObject;
+        JsonResponse: JsonObject;
+        JsonToken: JsonToken;
         CompanyName: Text;
+        CertificateName: Text;
+        RemoveUrl: Text;
+        AzureFunctionKey: Text;
+        ErrorMessage: Text;
     begin
+        // Validate prerequisites
         if not LHDNSetup."Certificate Configured" then
             Error('No certificate is configured.');
 
+        if LHDNSetup."Azure Function URL" = '' then
+            Error('Azure Function URL is not configured.');
+
+        // Generate certificate name
         CompanyName := CopyStr(CompanyProperty.DisplayName(), 1, 50);
         CompanyName := DelChr(CompanyName, '=', ' ');
+        // CertificateName := CompanyName + '-LHDN-Certificate';
+        CertificateName := LHDNSetup."Certificate ID";
 
-        JsonObj.Add('certificateName', CompanyName + '-LHDN-Certificate');
+        // Confirm deletion
+        if not Confirm('Are you sure you want to permanently remove certificate "%1" from Azure Key Vault?\\This action cannot be undone.', false, CertificateName) then
+            exit;
+
+        // Normalize URL (remove trailing slash)
+        RemoveUrl := LHDNSetup."Azure Function URL".TrimEnd('/') + '/api/RemoveCertificate';
+
+        // Prepare request body
+        Clear(JsonObj);
+        JsonObj.Add('certificateName', CertificateName);
         JsonObj.WriteTo(RequestBody);
 
+        // Debug: Show what we're sending
+        Message('Sending request to: %1\\Certificate Name: %2\\Request Body: %3', RemoveUrl, CertificateName, RequestBody);
+
+        // Set up HTTP content with proper headers
         Content.WriteFrom(RequestBody);
+        Content.GetHeaders(Headers);
+        Headers.Clear();
+        Headers.Add('Content-Type', 'application/json');
+
+        // Set up authentication
+        AzureFunctionKey := LHDNSetup.GetAzureFunctionKey();
+        if AzureFunctionKey <> '' then begin
+            if not Client.DefaultRequestHeaders.Contains('x-functions-key') then
+                Client.DefaultRequestHeaders.Add('x-functions-key', AzureFunctionKey);
+        end;
+
+        // Set up HTTP request
         RequestMsg.Method := 'DELETE';
-        RequestMsg.SetRequestUri(LHDNSetup."Azure Function URL" + '/api/RemoveCertificate');
+        RequestMsg.SetRequestUri(RemoveUrl);
         RequestMsg.Content := Content;
 
-        if Client.Send(RequestMsg, ResponseMsg) and ResponseMsg.IsSuccessStatusCode then begin
+        // Send request and handle response
+        if not Client.Send(RequestMsg, ResponseMsg) then
+            Error('Failed to communicate with Azure Function at %1. Please check your network connection.', RemoveUrl);
+
+        ResponseMsg.Content.ReadAs(ResponseText);
+
+        // Debug: Show response
+        Message('Response Status: %1\\Response Body: %2', ResponseMsg.HttpStatusCode, ResponseText);
+
+        if ResponseMsg.IsSuccessStatusCode then begin
+            // Successfully removed
             ClearCertificateMetadata(LHDNSetup);
-            Message('Certificate removed successfully from Azure Key Vault.');
-        end else
-            Error('Failed to remove certificate from Azure.');
+            Message('Certificate "%1" has been successfully removed from Azure Key Vault.', CertificateName);
+        end else begin
+            // Handle error response - show full details
+            ErrorMessage := StrSubstNo('Status Code: %1\\Reason: %2', ResponseMsg.HttpStatusCode, ResponseMsg.ReasonPhrase);
+
+            // Try to parse error details from response
+            if ResponseText <> '' then begin
+                if JsonResponse.ReadFrom(ResponseText) then begin
+                    if JsonResponse.Get('error', JsonToken) then
+                        ErrorMessage += '\\Error: ' + JsonToken.AsValue().AsText();
+                end else
+                    ErrorMessage += '\\Raw Response: ' + ResponseText;
+            end;
+
+            Error(ErrorMessage);
+        end;
     end;
 
     local procedure ClearCertificateMetadata(var LHDNSetup: Record "MY eInv Setup")
     begin
-        Clear(LHDNSetup."Certificate File Name");
-        Clear(LHDNSetup."Certificate Configured");
-        Clear(LHDNSetup."Certificate Issuer");
-        Clear(LHDNSetup."Certificate Subject");
-        Clear(LHDNSetup."Certificate Serial Number");
-        Clear(LHDNSetup."Certificate Valid From");
-        Clear(LHDNSetup."Certificate Valid To");
+        LHDNSetup."Certificate File Name" := '';
+        LHDNSetup."Certificate Configured" := false;
+        LHDNSetup."Certificate Issuer" := '';
+        LHDNSetup."Certificate Subject" := '';
+        LHDNSetup."Certificate Serial Number" := '';
+        LHDNSetup."Certificate Valid From" := 0DT;
+        LHDNSetup."Certificate Valid To" := 0DT;
         LHDNSetup.Modify(true);
+        Commit();
     end;
 }

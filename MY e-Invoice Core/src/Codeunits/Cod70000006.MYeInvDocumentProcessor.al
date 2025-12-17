@@ -55,7 +55,7 @@ codeunit 70000006 "MY eInv Document Processor"
             if Setup."Azure Function URL" = '' then
                 Error('Signing Service URL is not configured. Please configure in MY eInv Setup.');
 
-            AzureFunctionKey := eInvAuth.GetAzureFunctionKey(Setup);
+            AzureFunctionKey := Setup.GetAzureFunctionKey();
             if AzureFunctionKey = '' then
                 Error('Azure Function Key is not configured.Please configure in MY eInv Setup.');
 
